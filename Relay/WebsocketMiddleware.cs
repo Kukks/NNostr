@@ -38,9 +38,14 @@ namespace Relay
                         return;
                     }
                 });
+
+            }
+            else
+            {
+                
+                await next.Invoke(context);
             }
 
-            await next.Invoke(context);
         }
 
         private async Task Receive(WebSocket socket, Action<WebSocketReceiveResult, string> handleMessage)

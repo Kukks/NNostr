@@ -33,13 +33,13 @@ namespace Relay
             {
                 return false;
             }
-            ECPubKey pub = nostrEvent.GetPublicKey();
+            var pub = nostrEvent.GetPublicKey();
             if (!SecpSchnorrSignature.TryCreate(nostrEvent.Signature.DecodHexData(), out var sig))
             {
                 return false;
             }
 
-            return pub.SigVerifySchnorr(sig, hash);
+            return pub.SigVerifyBIP340(sig, hash);
         }
 
         public static ECXOnlyPubKey GetPublicKey(this NostrEvent nostrEvent)
@@ -50,6 +50,56 @@ namespace Relay
         public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
         {
             IQueryable<NostrEvent> result = null;
+            foreach (var filter in filters)
+            {
+                var filterQuery = events;
+                if (!string.IsNullOrEmpty(filter.Id))
+                {
+                    filterQuery = filterQuery.Where(e => e.Id == filter.Id);
+                }
+
+                if (filter.Kind != null)
+                {
+                    filterQuery = filterQuery.Where(e => e.Kind == filter.Kind);
+                }
+
+                if (filter.Since != null)
+                {
+                    filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
+                }
+
+                if (!string.IsNullOrEmpty(filter.Author))
+                {
+                    filterQuery = filterQuery.Where(e => e.PublicKey == filter.Author);
+                }
+
+                var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
+                if (authors?.Any() is true)
+                {
+                    filterQuery = filterQuery.Where(e => authors.Contains(e.PublicKey));
+                }
+
+                if (!string.IsNullOrEmpty(filter.EventId))
+                {
+                    filterQuery = filterQuery.Where(e =>
+                        e.Tags.Any(tag => tag.TagIdentifier == "e" && tag.Data[1] == filter.EventId));
+                }
+
+                if (!string.IsNullOrEmpty(filter.PublicKey))
+                {
+                    filterQuery = filterQuery.Where(e =>
+                        e.Tags.Any(tag => tag.TagIdentifier == "p" && tag.Data[1] == filter.PublicKey));
+                }
+
+                result = result is null ? filterQuery : result.Union(filterQuery);
+
+            }
+            
+            return result;
+        }
+        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
+        {
+            IEnumerable<NostrEvent> result = null;
             foreach (var filter in filters)
             {
                 var filterQuery = events;

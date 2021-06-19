@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 
 namespace Relay
 {
@@ -8,12 +9,14 @@ namespace Relay
     {
         private readonly StateManager _stateManager;
         private readonly NostrEventService _nostrEventService;
+        private readonly ILogger<CloseNostrMessageHandler> _logger;
         private const string PREFIX = "CLOSE";
 
-        public CloseNostrMessageHandler(StateManager stateManager, NostrEventService nostrEventService)
+        public CloseNostrMessageHandler(StateManager stateManager, NostrEventService nostrEventService, ILogger<CloseNostrMessageHandler> logger)
         {
             _stateManager = stateManager;
             _nostrEventService = nostrEventService;
+            _logger = logger;
         }
 
         public async Task Handle(string connectionId, string msg)
@@ -22,6 +25,8 @@ namespace Relay
             {
                 return;
             }
+            
+            _logger.LogInformation($"Handling Close message for connection: {connectionId} \n{msg}");
             var json = JsonDocument.Parse(msg).RootElement;
 
             var id = $"{connectionId}_{json[1].GetString()}";

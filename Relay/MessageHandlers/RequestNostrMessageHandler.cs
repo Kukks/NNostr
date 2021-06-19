@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
 using Relay.Data;
 
 namespace Relay
@@ -11,15 +12,17 @@ namespace Relay
     {
         private readonly NostrEventService _nostrEventService;
         private readonly StateManager _stateManager;
+        private readonly ILogger<RequestNostrMessageHandler> _logger;
 
 
         private const string PREFIX = "REQ";
 
         public RequestNostrMessageHandler(NostrEventService nostrEventService,
-            StateManager stateManager)
+            StateManager stateManager, ILogger<RequestNostrMessageHandler> logger)
         {
             _nostrEventService = nostrEventService;
             _stateManager = stateManager;
+            _logger = logger;
         }
 
         public async Task Handle(string connectionId, string msg)
@@ -29,6 +32,7 @@ namespace Relay
                 return;
             }
 
+            _logger.LogInformation($"Handling REQ message for connection: {connectionId} \n{msg}");
             var json = JsonDocument.Parse(msg).RootElement;
 
             var id = json[1].GetString();

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using Relay.Data;
 
 namespace Relay
@@ -15,14 +16,16 @@ namespace Relay
             new();
 
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
+        private readonly ILogger<NostrEventService> _logger;
         public event EventHandler<NostrEventsMatched> EventsMatched;
 
         private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
             new();
 
-        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory)
+        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger)
         {
             _dbContextFactory = dbContextFactory;
+            _logger = logger;
         }
 
         public async Task AddEvent(params NostrEvent[] evt)
@@ -32,12 +35,15 @@ namespace Relay
             var alreadyPresentEventIds =
                 await context.Events.Where(e => evtIds.Contains(e.Id)).Select(e => e.Id).ToArrayAsync();
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
+            
+            _logger.LogInformation($"Saving {evt.Length} new events");
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
-                var matched = evt.AsQueryable().Filter(nostrSubscriptionFilter.Value);
-                if (!await matched.AnyAsync()) continue;
+                var matched = evt.Filter(nostrSubscriptionFilter.Value);
+                if (!matched.Any()) continue;
 
-                var matchedList = await matched.ToArrayAsync();
+                var matchedList = matched.ToArray();
+                _logger.LogInformation($"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
                 if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
                 {
                     var updatedResult = currentFilterValues.Concat(matchedList).ToArray();
@@ -86,6 +92,7 @@ namespace Relay
         {
             if (ActiveFilters.Remove(removedFilter, out _))
             {
+                _logger.LogInformation($"Removing filter: {removedFilter}");
                 CachedFilterResults.Remove(removedFilter, out _);
             }
         }
