@@ -14,7 +14,7 @@ namespace Relay
         public static string ToJson(this NostrEvent nostrEvent)
         {
             return
-                $"[0,{nostrEvent.PublicKey},{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],{nostrEvent.Content}]";
+                $"[0,\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],\"{nostrEvent.Content}\"]";
         }
         public static string ComputeId(this NostrEvent nostrEvent)
         {

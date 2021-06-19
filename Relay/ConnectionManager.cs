@@ -17,7 +17,7 @@ namespace Relay
         private readonly NostrEventService _nostrEventService;
         private Task _processingSendMessages = Task.CompletedTask;
         private CancellationTokenSource _cts;
-        public ConcurrentDictionary<string, WebSocket> Connections { get; set; }
+        public ConcurrentDictionary<string, WebSocket> Connections { get; set; } = new();
 
 
         public ConnectionManager(StateManager stateManager, ILogger<ConnectionManager> logger,
