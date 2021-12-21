@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NNostr.Client;
 
 namespace Relay.Data
 {

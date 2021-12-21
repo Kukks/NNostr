@@ -7,7 +7,6 @@ namespace Relay
     public class NostrSubscriptionFilter
     {
         [JsonPropertyName("id")] public string? Id { get; set; }
-        [JsonPropertyName("author")] public string? Author { get; set; }
         [JsonPropertyName("authors")] public string[] Authors { get; set; }
         [JsonPropertyName("kind")] public int? Kind { get; set; }
         [JsonPropertyName("#e")] public string? EventId { get; set; }

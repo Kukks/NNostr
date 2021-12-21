@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using NNostr.Client;
 
 namespace Relay
 {
@@ -46,19 +47,6 @@ namespace Relay
             }
         }
 
-        private async Task SendMessageAsync(WebSocket socket, string message, CancellationToken cancellationToken)
-        {
-            if (socket.State != WebSocketState.Open)
-                return;
-
-            await socket.SendAsync(buffer: new ArraySegment<byte>(array: Encoding.UTF8.GetBytes(message),
-                    offset: 0,
-                    count: message.Length),
-                messageType: WebSocketMessageType.Text,
-                endOfMessage: true,
-                cancellationToken: cancellationToken);
-        }
-
         private async Task ProcessSendMessages(CancellationToken cancellationToken)
         {
             while (await _stateManager.PendingMessages.Reader.WaitToReadAsync(cancellationToken))
@@ -69,7 +57,7 @@ namespace Relay
                     {
                         if (Connections.TryGetValue(evt.Item1, out var conn))
                         {
-                            await SendMessageAsync(conn, evt.Item2, cancellationToken);
+                            await conn.SendMessageAsync(evt.Item2, cancellationToken);
                         }
                     }
                     catch when (cancellationToken.IsCancellationRequested)

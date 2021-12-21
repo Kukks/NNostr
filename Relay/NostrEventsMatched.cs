@@ -1,3 +1,4 @@
+using NNostr.Client;
 using Relay.Data;
 
 namespace Relay

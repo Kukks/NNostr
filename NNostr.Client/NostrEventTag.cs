@@ -2,10 +2,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Microsoft.EntityFrameworkCore;
 using Relay.JsonConverters;
 
-namespace Relay.Data
+namespace NNostr.Client
 {
     [JsonConverter(typeof(NostrEventTagJsonConverter))]
     public class NostrEventTag

@@ -1,6 +1,7 @@
 using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using NNostr.Client;
 using Relay.Data;
 
 namespace Relay.JsonConverters

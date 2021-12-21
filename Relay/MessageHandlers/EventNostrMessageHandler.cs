@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using NNostr.Client;
 using Relay.Data;
 
 namespace Relay
