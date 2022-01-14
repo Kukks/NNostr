@@ -38,4 +38,4 @@ jobs:
           INCLUDE_SYMBOLS: false
           VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
           TAG_COMMIT: true
-          TAG_FORMAT: v*
+          TAG_FORMAT: NNostr.Client/v*
