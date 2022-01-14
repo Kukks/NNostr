@@ -1,0 +1,41 @@
+name: 'Publish application'
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout the code
+      - uses: actions/checkout@v2
+
+      # Install .NET Core SDK
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: 6.0.x
+
+      # Run tests
+      - name: Test
+        run: dotnet test
+
+      - name: Publish NuGet
+        if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
+        uses: Rebel028/publish-nuget@v2.6.3
+        with:
+          PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
+          NUGET_KEY: ${{secrets.NUGET_KEY}}
+          PACKAGE_NAME: NNostr.Client
+          INCLUDE_SYMBOLS: false
+          VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
+      - name: Publish Github Package Registry
+        if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
+        uses: Rebel028/publish-nuget@v2.6.3
+        with:
+          PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
+          NUGET_SOURCE: "https://nuget.pkg.github.com/Kukks"
+          NUGET_KEY: ${{secrets.GH_TOKEN}}
+          PACKAGE_NAME: NNostr.Client
+          INCLUDE_SYMBOLS: false
+          VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
+          TAG_COMMIT: true
+          TAG_FORMAT: v*

@@ -5,6 +5,16 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <LangVersion>10</LangVersion>
+        <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+        <PackageVersion>0.0.1</PackageVersion>
+        <Title>Nostr Client</Title>
+        <Description>A client for Nostr</Description>
+        <Copyright>MIT</Copyright>
+        <PackageProjectUrl>https://github.com/Kukks/NNostr</PackageProjectUrl>
+        <PackageLicenseUrl>https://raw.githubusercontent.com/Kukks/NNostr/master/LICENSE</PackageLicenseUrl>
+        <license>MIT</license>
+        <RepositoryUrl>https://github.com/Kukks/NNostr</RepositoryUrl>
+        <PackageTags>Nostr</PackageTags>
     </PropertyGroup>
 
     <ItemGroup>
