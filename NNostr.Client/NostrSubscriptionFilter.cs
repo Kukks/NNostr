@@ -6,12 +6,13 @@ namespace Relay
 {
     public class NostrSubscriptionFilter
     {
-        [JsonPropertyName("id")] public string? Id { get; set; }
-        [JsonPropertyName("authors")] public string[] Authors { get; set; }
-        [JsonPropertyName("kind")] public int? Kind { get; set; }
-        [JsonPropertyName("#e")] public string? EventId { get; set; }
-        [JsonPropertyName("#p")] public string? PublicKey { get; set; }
+        [JsonPropertyName("ids")] public string[]? Ids { get; set; }
+        [JsonPropertyName("authors")] public string[]? Authors { get; set; }
+        [JsonPropertyName("kinds")] public int[]? Kinds { get; set; }
+        [JsonPropertyName("#e")] public string[]? EventId { get; set; }
+        [JsonPropertyName("#p")] public string[]? PublicKey { get; set; }
         [JsonPropertyName("since")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Since { get; set; }
+        [JsonPropertyName("until")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Until { get; set; }
 
     }
 }

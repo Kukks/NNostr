@@ -1,10 +1,13 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Relay", "Relay\Relay.csproj", "{34C8D1DE-386F-442C-8463-DDDBA22C62C0}"
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32014.148
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Relay", "Relay\Relay.csproj", "{34C8D1DE-386F-442C-8463-DDDBA22C62C0}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NNostr.Client", "NNostr.Client\NNostr.Client.csproj", "{F2788609-DE89-4D25-BE31-1DEFD263007E}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NNostr.Client", "NNostr.Client\NNostr.Client.csproj", "{F2788609-DE89-4D25-BE31-1DEFD263007E}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NNostr.UI", "NNostr.UI\NNostr.UI.csproj", "{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NNostr.UI", "NNostr.UI\NNostr.UI.csproj", "{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +27,11 @@ Global
 		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {57D900B0-68A6-4C56-A124-07507A512947}
 	EndGlobalSection
 EndGlobal

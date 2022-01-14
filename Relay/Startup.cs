@@ -31,7 +31,7 @@ namespace Relay
                     throw new Exception("Database: Connection string not set");
                 }
                 builder.UseNpgsql(connString, optionsBuilder => { optionsBuilder.EnableRetryOnFailure(10); });
-            }, ServiceLifetime.Singleton);
+            });
             services.AddHostedService<MigrationHostedService>();
             services.AddLogging();
             services.AddSingleton<NostrEventService>();

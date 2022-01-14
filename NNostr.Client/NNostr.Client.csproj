@@ -8,8 +8,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="NBitcoin.Secp256k1" Version="1.0.10" />
-        <PackageReference Include="System.Text.Json" Version="5.0.2" />
+        <PackageReference Include="NBitcoin.Secp256k1" Version="2.0.2" />
+        <PackageReference Include="System.Text.Json" Version="6.0.1" />
     </ItemGroup>
 
 </Project>

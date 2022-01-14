@@ -1,12 +1,7 @@
-using System;
-using System.IO;
-using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Channels;
-using System.Threading.Tasks;
 using Relay;
 
 namespace NNostr.Client
@@ -14,8 +9,8 @@ namespace NNostr.Client
     public class NostrClient : IDisposable
     {
         private readonly Uri _relay;
-        protected ClientWebSocket websocket;
-        private CancellationTokenSource _Cts;
+        protected ClientWebSocket? websocket;
+        private CancellationTokenSource? _Cts;
         private CancellationTokenSource messageCts = new();
         
         public NostrClient(Uri relay)
@@ -42,13 +37,13 @@ namespace NNostr.Client
             {
                 await ConnectAndWaitUntilConnected(_Cts.Token);
 
-                websocket.Abort();
+                websocket!.Abort();
             }
         }
 
         private async Task ListenForMessages()
         {
-            while (websocket.State == WebSocketState.Open && !_Cts.IsCancellationRequested)
+            while (websocket!.State == WebSocketState.Open && !_Cts!.IsCancellationRequested)
             {
                 var buffer = new ArraySegment<byte>(new byte[1024 * 4]);
                 try
@@ -61,7 +56,7 @@ namespace NNostr.Client
                         {
                             result = await websocket.ReceiveAsync(buffer, _Cts.Token)
                                 .ConfigureAwait(false);
-                            ms.Write(buffer.Array, buffer.Offset, result.Count);
+                            ms.Write(buffer.Array!, buffer.Offset, result.Count);
                         } while (!result.EndOfMessage);
 
                         if (result.MessageType == WebSocketMessageType.Close)
@@ -86,7 +81,8 @@ namespace NNostr.Client
                 }
             }
         }
-        public readonly Channel<string> PendingMessages = Channel.CreateUnbounded<string>();
+
+        private readonly Channel<string> PendingMessages = Channel.CreateUnbounded<string>();
 
         private Task HandleMessage(string message)
         {
@@ -95,7 +91,7 @@ namespace NNostr.Client
             {
                 case "event":
                     var subscriptionId = json[1].GetRawText();
-                    var evts = json[2].Deserialize<NostrEvent[]>()!;
+                    var evts = json[2].Deserialize<NostrEvent[]>()!.Where(evt => evt.Verify()).ToArray();
                     EventsReceived.Invoke(this, (subscriptionId, evts));
                     break;
                 case "notice":
