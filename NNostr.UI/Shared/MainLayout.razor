@@ -1,0 +1,28 @@
+@using Fluxor
+@using NNostr.UI.Store
+@inherits Fluxor.Blazor.Web.Components.FluxorLayout
+@inject IState<MenuState> _menuState
+<IonSplitPane content-id="main">
+    @if (_menuState.Value.MenuItems?.Any() is true)
+    {
+        <IonMenu content-id="main">
+
+
+            <IonMenuToggle auto-hide="false">
+                @foreach (var i in _menuState.Value.MenuItems)
+                {
+                    <IonItem href="@i.Link">
+                        @if (!string.IsNullOrEmpty(i.Icon))
+                        {
+                            <IonIcon name="@i.Icon" slot="start"></IonIcon>
+                        }
+                        <IonLabel>@i.Text</IonLabel>
+                    </IonItem>
+                }
+            </IonMenuToggle>
+        </IonMenu>
+    }
+    <IonContent id="main">
+        @Body
+    </IonContent>
+</IonSplitPane>

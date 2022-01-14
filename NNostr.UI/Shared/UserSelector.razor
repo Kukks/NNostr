@@ -1,0 +1,106 @@
+@using Fluxor
+@using NNostr.UI.Services
+@using NNostr.UI.Store
+@if (LoadState != LoadState.Loaded)
+{
+    <IonList>
+        <IonListHeader>
+            <IonLabel>
+                <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 20%"></IonSkeletonText>
+            </IonLabel>
+        </IonListHeader>
+        <IonItem>
+            <IonAvatar slot="start">
+                <IonSkeletonText animated="@(LoadState == LoadState.Loading)"></IonSkeletonText>
+            </IonAvatar>
+            <IonLabel>
+                <h3>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 50%"></IonSkeletonText>
+                </h3>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 80%"></IonSkeletonText>
+                </p>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 60%"></IonSkeletonText>
+                </p>
+            </IonLabel>
+        </IonItem>
+        <IonItem>
+            <IonThumbnail slot="start">
+                <IonSkeletonText animated="@(LoadState == LoadState.Loading)"></IonSkeletonText>
+            </IonThumbnail>
+            <IonLabel>
+                <h3>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 50%"></IonSkeletonText>
+                </h3>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 80%"></IonSkeletonText>
+                </p>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 60%"></IonSkeletonText>
+                </p>
+            </IonLabel>
+        </IonItem>
+        <IonItem>
+            <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 27px; height: 27px" slot="start"></IonSkeletonText>
+            <IonLabel>
+                <h3>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 50%"></IonSkeletonText>
+                </h3>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 80%"></IonSkeletonText>
+                </p>
+                <p>
+                    <IonSkeletonText animated="@(LoadState == LoadState.Loading)" style="width: 60%"></IonSkeletonText>
+                </p>
+            </IonLabel>
+        </IonItem>
+    </IonList>
+}
+else
+{
+    <IonCard>
+        <IonCardHeader>
+            <IonCardTitle>Users</IonCardTitle>
+        </IonCardHeader>
+        <IonCardContent>
+            <IonList>
+                @if (Users?.Any() is true)
+                {
+                    @foreach (var user in Users)
+                    {
+                        <IonItem button OnClick="args => UserClicked.InvokeAsync(user.Key)">
+                            <IonThumbnail slot="start">
+                                <IonIcon name="person-circle"></IonIcon>
+                            </IonThumbnail>
+                            <IonLabel>
+                                <h3>@user.Value</h3>
+                            </IonLabel>
+                        </IonItem>
+                    }
+                }
+                else
+                {
+                    <IonItem button>
+                        <IonLabel>
+                            <h3>No users</h3>
+                        </IonLabel>
+                    </IonItem>
+                }
+            </IonList>
+        </IonCardContent>
+    </IonCard>
+}
+
+@code {
+
+    [Parameter]
+    public EventCallback<string> UserClicked { get; set; }
+
+    [Parameter]
+    public LoadState LoadState { get; set; }
+
+    [Parameter]
+    public Dictionary<string, string>? Users { get; set; }
+
+}

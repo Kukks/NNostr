@@ -1,0 +1,25 @@
+
+@implements IAsyncDisposable
+
+
+@code
+{
+    [Inject]
+    private IEnumerable<IHostedService> InjectedHostedServices { get; set; }
+
+    [Parameter]
+    public CancellationToken? HostedServicesCancellationToken { get; set; }
+
+    [Parameter]
+    public CancellationToken? HostedServicesStopCancellationToken { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(InjectedHostedServices.Select(s => s.StartAsync(HostedServicesCancellationToken ?? CancellationToken.None)));
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return new ValueTask(Task.WhenAll(InjectedHostedServices.Select(s => s.StopAsync(HostedServicesStopCancellationToken ?? CancellationToken.None))));
+    }
+}

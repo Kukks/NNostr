@@ -1,0 +1,58 @@
+@using Fluxor
+@using NNostr.UI.Store
+@inject IState<CurrentUserState> CurrentUserState
+@inject IDispatcher Dispatcher
+@inject NavigationManager NavigationManager
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+<HostedServices></HostedServices>
+<Fluxor.Blazor.Web.StoreInitializer/>
+
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" DefaultLayout="@typeof(MainLayout)"/>
+    </Found>
+    <NotFound>
+        <LayoutView Layout="@typeof(MainLayout)">
+            <p>Sorry, there's nothing at this address.</p>
+        </LayoutView>
+    </NotFound>
+</Router>
+
+
+@code{
+
+    protected override void OnInitialized()
+    {
+        DeterminePage();
+        base.OnInitialized();
+    }
+
+    private void DeterminePage()
+    {
+        if (CurrentUserState.Value.State == LoadState.NotLoaded)
+        {
+            CurrentUserState.StateChanged += CurrentUserStateOnStateChanged;
+            Dispatcher.Dispatch(new LoadCurrentUserAction());
+        }
+        else if (CurrentUserState.Value.State is LoadState.Loading)
+        {
+            return;
+        }
+        else if (CurrentUserState.Value.User is null)
+        {
+            CurrentUserState.StateChanged -= CurrentUserStateOnStateChanged;
+            NavigationManager.NavigateTo("select-user");
+        }
+        else
+        {
+            CurrentUserState.StateChanged -= CurrentUserStateOnStateChanged;
+            NavigationManager.NavigateTo("timeline");
+        }
+    }
+
+    private void CurrentUserStateOnStateChanged(object? sender, EventArgs eventArgs)
+    {
+        DeterminePage();
+    }
+
+}

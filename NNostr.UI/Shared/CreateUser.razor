@@ -1,0 +1,56 @@
+@using NNostr.UI.Services
+@using NBitcoin.Secp256k1
+@using System.Security.Cryptography
+@using System.ComponentModel.DataAnnotations
+<EditForm Model="@this" OnValidSubmit="Submit">
+    <IonItem>
+        <IonLabel>Username</IonLabel>
+        <IonInput type="text" @bind-Value="Username"></IonInput>
+    </IonItem>
+    <IonItem ValidationField="() => Key">
+        <IonLabel>Key</IonLabel>
+        <IonInput type="text" readonly @bind-Value="Key" ValidationField="() => Key"></IonInput>
+        <IonIcon slot="end" name="refresh-outline" button @onclick="GenerateKey"></IonIcon>
+    </IonItem>
+    <IonButton expand="block" type="submit">Create</IonButton>
+</EditForm>
+
+@code {
+
+    private string? Username { get; set; }
+
+    [Required]
+    private string? Key { get; set; }
+
+    [Parameter]
+    public EventCallback<User> UserSubmitted { get; set; }
+
+    protected override void OnInitialized()
+    {
+        GenerateKey();
+    }
+
+    public void GenerateKey()
+    {
+        if (ECPrivKey.TryCreate(new ReadOnlySpan<byte>(RandomNumberGenerator.GetBytes(32)), out var key))
+        {
+            Span<byte> derOutput = new Span<byte>(new byte[214]);
+            key.WriteDerToSpan(true, derOutput, out var length);
+            derOutput = derOutput.Slice(0, length);
+            Key = Convert.ToHexString(derOutput);
+        }
+    }
+
+    private void Submit()
+    {
+        if (Key is not null)
+        {
+            UserSubmitted.InvokeAsync(new User()
+            {
+                Username = Username,
+                Key = Key
+            });
+        }
+    }
+
+}

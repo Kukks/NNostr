@@ -1,4 +1,7 @@
 ﻿<wpf:ResourceDictionary xml:space="preserve" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:s="clr-namespace:System;assembly=mscorlib" xmlns:ss="urn:shemas-jetbrains-com:settings-storage-xaml" xmlns:wpf="http://schemas.microsoft.com/winfx/2006/xaml/presentation">
+	<s:String x:Key="/Default/Environment/AssemblyExplorer/XmlDocument/@EntryValue">&lt;AssemblyExplorer&gt;&#xD;
+  &lt;Assembly Path="C:\Users\evilk\.nuget\packages\nbitcoin.secp256k1\1.0.10\lib\netcoreapp2.1\NBitcoin.Secp256k1.dll" /&gt;&#xD;
+&lt;/AssemblyExplorer&gt;</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=22d44596_002Da174_002D4325_002D90df_002D38d748969f9d/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="Test1 #3" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;xUnit::600B2A11-CDB1-4E91-BAC9-39AEC3B45393::net5.0::NNostr.Tests.UnitTest1.Test1&lt;/TestId&gt;&#xD;
@@ -13,4 +16,5 @@
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;xUnit::600B2A11-CDB1-4E91-BAC9-39AEC3B45393::net5.0::NNostr.Tests.UnitTest1.Test1&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
-&lt;/SessionState&gt;</s:String></wpf:ResourceDictionary>
+&lt;/SessionState&gt;</s:String>
+	<s:Boolean x:Key="/Default/UnloadedProject/UnloadedProjects/=d226bb12_002D47be_002D471f_002Db7d6_002D4ab92c3cff2f_0023NNostr_002EUI/@EntryIndexedValue">True</s:Boolean></wpf:ResourceDictionary>

@@ -1,0 +1,83 @@
+@page "/select-user"
+@using Fluxor
+@using NNostr.UI.Services
+@using NNostr.UI.Store
+@inject IState<CurrentUserState> CurrentUserState
+@inject IState<UsersState> UsersState
+@inject IDispatcher Dispatcher
+@inject NavigationManager NavigationManager
+@inject UserRepository UserRepository
+@inherits Fluxor.Blazor.Web.Components.FluxorComponent
+<IonHeader translucent>
+    <IonToolbar>
+        <IonTitle>Select identity</IonTitle>
+    </IonToolbar>
+</IonHeader>
+<IonContent fullscreen>
+
+    @if (UsersState.Value.State == LoadState.NotLoaded)
+    {
+        <IonButton expand="block" OnClick="LoadUsers">Load </IonButton>
+    }
+    else if (UsersState.Value.State == LoadState.Error)
+    {
+        <IonText color="danger">
+            <h4 >Could not load user list</h4>
+    
+            <IonButton expand="block" OnClick="LoadUsers">Retry</IonButton>
+        </IonText>
+    }
+    
+    <UserSelector UserClicked="SwitchToUser" LoadState="@UsersState.Value.State" Users="@UsersState.Value.Users"></UserSelector>
+    <IonButton expand="block" OnClick="() => NewUserModalOpen = true">Create Identity</IonButton>
+    <GenericModal Title="Create new identity" @bind-Open="NewUserModalOpen">
+        <CreateUser UserSubmitted="CreateNewUser"></CreateUser>
+    </GenericModal>
+    @CurrentUserState.Value.State
+</IonContent>
+<IonLoading Visible="CurrentUserState.Value.State == LoadState.Loading"></IonLoading>
+@code{
+
+    private bool NewUserModalOpen { get; set; }
+    private string? userIdToSwitchTo;
+    protected override void OnInitialized()
+    {
+        LoadUsers();
+        CurrentUserState.StateChanged += CurrentUserStateOnStateChanged;
+        base.OnInitialized();
+    }
+
+    private void CurrentUserStateOnStateChanged(object? sender, EventArgs eventArgs)
+    {
+        
+        if (userIdToSwitchTo is not null && userIdToSwitchTo == CurrentUserState.Value.User?.Key)
+        {
+            NavigationManager.NavigateTo("timeline");
+        }
+    }
+
+    private void SwitchToUser(string id)
+    {
+        userIdToSwitchTo = id;
+        Dispatcher.Dispatch(new SetCurrentUserAction(id, null));
+    }
+
+    private async Task CreateNewUser(User obj)
+    {
+        Dispatcher.Dispatch(new UnLoadUsersAction() );
+        await UserRepository.SetUser(obj);
+        SwitchToUser(obj.Key);
+    }
+
+    private void LoadUsers()
+    {
+        Dispatcher.Dispatch(new LoadUsersAction());
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        CurrentUserState.StateChanged -= CurrentUserStateOnStateChanged;
+        base.Dispose(disposing);
+    }
+
+}
