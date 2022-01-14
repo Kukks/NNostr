@@ -7,8 +7,6 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Relay", "Relay\Relay.csproj
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NNostr.Client", "NNostr.Client\NNostr.Client.csproj", "{F2788609-DE89-4D25-BE31-1DEFD263007E}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "NNostr.UI", "NNostr.UI\NNostr.UI.csproj", "{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -23,10 +21,6 @@ Global
 		{F2788609-DE89-4D25-BE31-1DEFD263007E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F2788609-DE89-4D25-BE31-1DEFD263007E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F2788609-DE89-4D25-BE31-1DEFD263007E}.Release|Any CPU.Build.0 = Release|Any CPU
-		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{D226BB12-47BE-471F-B7D6-4AB92C3CFF2F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
