@@ -19,7 +19,7 @@ namespace Relay
 
         public async Task InvokeAsync(HttpContext context, RequestDelegate next)
         {
-            if (context.Request.Path.StartsWithSegments(new PathString("/ws")) && context.WebSockets.IsWebSocketRequest)
+            if (context.WebSockets.IsWebSocketRequest)
             {
                 var socket = await context.WebSockets.AcceptWebSocketAsync();
                 await _webSocketHandler.OnConnected(socket);
