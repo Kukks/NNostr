@@ -15,7 +15,7 @@ namespace Relay
 
         public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
         {
-            return (IQueryable<NostrEvent>)Filter((IEnumerable<NostrEvent>)events, filters);
+            return Filter((IEnumerable<NostrEvent>)events, filters).AsQueryable();
         }
         public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
         {
