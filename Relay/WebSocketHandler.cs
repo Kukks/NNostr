@@ -41,7 +41,8 @@ namespace Relay
                 _stateManager.ConnectionToSubscriptions.TryGetValue(id, out var subscriptions))
             {
                 var orphanedFilters = new List<string>();
-                foreach (var subscription in subscriptions)
+                
+                foreach (var subscription in subscriptions.ToArray())
                 {
                     _stateManager.RemoveSubscription(id, subscription, out var orphanedFilters2);
                     orphanedFilters = orphanedFilters.Union(orphanedFilters2).ToList();

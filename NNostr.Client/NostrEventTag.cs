@@ -12,7 +12,7 @@ namespace NNostr.Client
         public string Id { get; set; }
         public string EventId { get; set; }
         public string TagIdentifier { get; set; }
-        public List<string> Data { get; set; }
+        public List<string> Data { get; set; } = new();
 
         public NostrEvent Event { get; set; }
 
