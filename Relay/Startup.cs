@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Text;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.WebSockets;
@@ -18,7 +20,7 @@ namespace Relay
         {
             _configuration = configuration;
         }
-        
+
         // This method gets called by the runtime. Use this method to add services to the container.
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
@@ -30,6 +32,7 @@ namespace Relay
                 {
                     throw new Exception("Database: Connection string not set");
                 }
+
                 builder.UseNpgsql(connString, optionsBuilder => { optionsBuilder.EnableRetryOnFailure(10); });
             });
             services.AddHostedService<MigrationHostedService>();
@@ -40,6 +43,7 @@ namespace Relay
             services.AddSingleton<ConnectionManager>();
             services.AddSingleton<WebSocketHandler>();
             services.AddSingleton<WebsocketMiddleware>();
+            services.AddSingleton<Nip11Middleware>();
             services.AddSingleton<INostrMessageHandler, CloseNostrMessageHandler>();
             services.AddSingleton<INostrMessageHandler, EventNostrMessageHandler>();
             services.AddSingleton<INostrMessageHandler, RequestNostrMessageHandler>();
@@ -58,6 +62,7 @@ namespace Relay
 
             app.UseWebSockets();
             app.UseMiddleware<WebsocketMiddleware>();
+            app.UseMiddleware<Nip11Middleware>();
         }
     }
 }
