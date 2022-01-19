@@ -13,12 +13,16 @@ namespace Relay
     public static class NostrExtensions
     {
 
-        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
+        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, bool includeDeleted = false, params NostrSubscriptionFilter[] filters)
         {
             IQueryable<NostrEvent> result = null;
             foreach (var filter in filters)
             {
                 var filterQuery = events;
+                if (!includeDeleted)
+                {
+                    filterQuery = filterQuery.Where(e => !e.Deleted);
+                }
                 if (filter.Ids?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>  filter.Ids.Contains(e.Id));
@@ -63,12 +67,16 @@ namespace Relay
             
             return result;
         }
-        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, params NostrSubscriptionFilter[] filters)
+        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, bool includeDeleted = false, params NostrSubscriptionFilter[] filters)
         {
             IEnumerable<NostrEvent> result = null;
             foreach (var filter in filters)
             {
                 var filterQuery = events;
+                if (!includeDeleted)
+                {
+                    filterQuery = filterQuery.Where(e => !e.Deleted);
+                }
                 if (filter.Ids?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>  filter.Ids.Contains(e.Id));

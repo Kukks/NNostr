@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NNostr.Client;
 using Relay.Data;
 
@@ -18,29 +19,30 @@ namespace Relay
 
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
+        private readonly IOptions<RelayOptions> _options;
         public event EventHandler<NostrEventsMatched> EventsMatched;
 
         private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
             new();
 
-        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger)
+        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger, IOptions<RelayOptions> options)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
+            _options = options;
         }
 
         public async Task AddEvent(params NostrEvent[] evt)
         {
             var evtIds = evt.Select(e => e.Id).ToArray();
-            await using var context = _dbContextFactory.CreateDbContext();
+            await using var context = await _dbContextFactory.CreateDbContextAsync();
             var alreadyPresentEventIds =
                 await context.Events.Where(e => evtIds.Contains(e.Id)).Select(e => e.Id).ToArrayAsync();
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
-            
             _logger.LogInformation($"Saving {evt.Length} new events");
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
-                var matched = evt.Filter(nostrSubscriptionFilter.Value);
+                var matched = evt.Filter(false, nostrSubscriptionFilter.Value).ToArray();
                 if (!matched.Any()) continue;
 
                 var matchedList = matched.ToArray();
@@ -60,6 +62,27 @@ namespace Relay
                     Events = matchedList,
                     FilterId = nostrSubscriptionFilter.Key
                 });
+            }
+
+            if (_options.Value.EnableNip09)
+            {
+                var deletionEvents = evt.Where(evt => evt.Kind == 5).ToArray();
+                if (deletionEvents.Any())
+                {
+                    var eventsToDeleteByPubKey = deletionEvents.Select(evt2 => (evt2.PublicKey, evt2.Tags.FindAll(tag =>
+                                tag.TagIdentifier.Equals("e", StringComparison.InvariantCultureIgnoreCase))
+                            .Select(tag => tag.Data.First())))
+                        .GroupBy(tuple => tuple.PublicKey)
+                        .ToDictionary(tuples => tuples.Key, tuples => tuples.SelectMany(tuple => tuple.Item2));
+                    foreach (var eventsToDeleteByPubKeyItem in eventsToDeleteByPubKey)
+                    {
+                        await context.Events.Where(evt2 =>
+                                evt2.PublicKey.Equals(eventsToDeleteByPubKeyItem.Key,
+                                    StringComparison.InvariantCultureIgnoreCase) &&
+                                !evt2.Deleted && eventsToDeleteByPubKeyItem.Value.Contains(evt2.Id))
+                            .ForEachAsync(evt2 => evt2.Deleted = true);
+                    }
+                }
             }
 
             await context.Events.AddRangeAsync(evt);
@@ -85,17 +108,15 @@ namespace Relay
 
         private async Task<NostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
         {
-            await using var context = _dbContextFactory.CreateDbContext();
-            return await context.Events.Include(e => e.Tags).Filter(filter).ToArrayAsync();
+            await using var context = await _dbContextFactory.CreateDbContextAsync();
+            return await context.Events.Include(e => e.Tags).Filter(false, filter).ToArrayAsync();
         }
 
         public void RemoveFilter(string removedFilter)
         {
-            if (ActiveFilters.Remove(removedFilter, out _))
-            {
-                _logger.LogInformation($"Removing filter: {removedFilter}");
-                CachedFilterResults.Remove(removedFilter, out _);
-            }
+            if (!ActiveFilters.Remove(removedFilter, out _)) return;
+            _logger.LogInformation($"Removing filter: {removedFilter}");
+            CachedFilterResults.Remove(removedFilter, out _);
         }
     }
 }

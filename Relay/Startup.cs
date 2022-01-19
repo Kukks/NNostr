@@ -34,6 +34,7 @@ namespace Relay
             });
             services.AddHostedService<MigrationHostedService>();
             services.AddLogging();
+            services.AddOptions<RelayOptions>();
             services.AddSingleton<NostrEventService>();
             services.AddSingleton<StateManager>();
             services.AddSingleton<ConnectionManager>();
