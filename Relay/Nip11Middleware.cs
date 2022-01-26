@@ -49,6 +49,7 @@ public class Nip11Middleware : IMiddleware
             context.Response.ContentType = "application/json";
                 
             await  context.Response.WriteAsync(JsonSerializer.Serialize(response));
+            return;
         }
 
         await next.Invoke(context);

@@ -1,14 +1,11 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
-using NNostr.Client;
 
 namespace Relay;
 
@@ -29,17 +26,17 @@ public class RestMiddleware : IMiddleware
             context.Request.Headers.Accept.Any(s =>
                 s.Equals("application/json", StringComparison.InvariantCultureIgnoreCase)))
         {
-
             using var streamReader = new StreamReader(context.Request.Body);
             var body = await streamReader.ReadToEndAsync();
-           var filters = JsonSerializer.Deserialize<NostrSubscriptionFilter[]>(body);
-           var evts = await _nostrEventService.FetchData(filters);
-           
+            var filters = JsonSerializer.Deserialize<NostrSubscriptionFilter[]>(body);
+            var evts = await _nostrEventService.FetchData(filters);
+
             context.Response.Clear();
             context.Response.StatusCode = 200;
             context.Response.ContentType = "application/json";
-                
-            await  context.Response.WriteAsync(JsonSerializer.Serialize(evts));
+
+            await context.Response.WriteAsync(JsonSerializer.Serialize(evts));
+            return;
         }
 
         await next.Invoke(context);

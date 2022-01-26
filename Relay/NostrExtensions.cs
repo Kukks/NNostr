@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using System.Linq;
+using LinqKit;
 using NNostr.Client;
+using Extensions = LinqKit.Core.Extensions;
 
 namespace Relay
 {
@@ -12,14 +14,14 @@ namespace Relay
             IQueryable<NostrEvent> result = null;
             foreach (var filter in filters)
             {
-                var filterQuery = events;
+                var filterQuery =events;
                 if (!includeDeleted)
                 {
                     filterQuery = filterQuery.Where(e => !e.Deleted);
                 }
                 if (filter.Ids?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e =>  filter.Ids.Any(s => e.Id.StartsWith(s)));
+                    filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<NostrEvent>(), (current, temp) => current.Or(p => p.Id.StartsWith(temp))));
                 }
 
                 if (filter.Kinds?.Any() is true)
@@ -40,7 +42,7 @@ namespace Relay
                 var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
                 if (authors?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e =>  authors.Any(s => e.PublicKey.StartsWith(s)));
+                    filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<NostrEvent>(), (current, temp) => current.Or(p => p.PublicKey.StartsWith(temp))));
                 }
 
                 if (filter.EventId?.Any() is true)
@@ -56,7 +58,7 @@ namespace Relay
                 }
 
                 var tagFilters = filter.GetAdditionalTagFilters();
-                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1]))));
+                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Equals(tag.Data[1]))));
 
                 result = result is null ? filterQuery : result.Union(filterQuery);
 

@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text;
+using LinqKit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.WebSockets;
@@ -34,6 +35,7 @@ namespace Relay
                 }
 
                 builder.UseNpgsql(connString, optionsBuilder => { optionsBuilder.EnableRetryOnFailure(10); });
+                builder.WithExpressionExpanding();
             });
             services.AddHostedService<MigrationHostedService>();
             services.AddLogging();
