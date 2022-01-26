@@ -9,6 +9,7 @@ using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
+using NBitcoin;
 using Newtonsoft.Json.Linq;
 using NNostr.Client;
 using Relay.Data;
@@ -71,19 +72,46 @@ public class AdminChatBot:IHostedService
                         var topup = await context.BalanceTopups.FirstOrDefaultAsync(topup =>
                             topup.BalanceId == evt.PublicKey && topup.Status == BalanceTopup.TopupStatus.Pending);
                         InvoiceData i = null;
+                        Balance? b = null;
                         if (topup is not null)
                         {
                             i = await _btcPayServerClient.GetInvoice(_options.Value.BTCPayServerStoreId, topup.Id);
                             if (i.Status != InvoiceStatus.New)
                             {
-                                
-                                topup.Status = BalanceTopup.TopupStatus.Expired;
-                                topup = null;
+                                if (i.Status == InvoiceStatus.Expired || i.Status == InvoiceStatus.Invalid)
+                                {
+                                    topup.Status = BalanceTopup.TopupStatus.Expired;
+                                    topup = null;
+                                }
+
+                                if (i.Status == InvoiceStatus.Settled)
+                                {
+                                    var invoicePaymentMethods= await _btcPayServerClient.GetInvoicePaymentMethods(i.StoreId, i.Id);
+
+                                    var val = Money.FromUnit(i.Amount, MoneyUnit.BTC).Satoshi;
+                                    topup.Status = BalanceTopup.TopupStatus.Complete;
+                                    await context.BalanceTransactions.AddAsync(new BalanceTransaction()
+                                    {
+                                        Event = null,
+                                        BalanceTopupId = topup.Id,
+                                        BalanceId = topup.BalanceId,
+                                        Timestamp = new DateTimeOffset(invoicePaymentMethods
+                                            .SelectMany(model => model.Payments)
+                                            .OrderByDescending(payment => payment.ReceivedDate).FirstOrDefault()
+                                            ?.ReceivedDate ?? DateTime.UtcNow),
+                                        Value = val,
+                                        
+                                    });
+                                    
+                                    b = await context.Balances.FindAsync(evt.PublicKey);
+                                    b!.CurrentBalance += val;
+                                    topup = null;
+                                }
                             }
                         }
                         if (topup is null)
                         {
-                            var b = await context.Balances.FindAsync(evt.PublicKey);
+                            b ??= await context.Balances.FindAsync(evt.PublicKey);
                             if (b is null)
                             {
                                 b = new Balance()

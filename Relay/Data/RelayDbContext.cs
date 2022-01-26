@@ -21,9 +21,8 @@ namespace Relay.Data
         public string? BalanceTopupId { get; set; }
         public string? EventId { get; set; }
         public long Value { get; set; }
-        public string PublicKey { get; set; }
         public DateTimeOffset Timestamp { get; set; }
-        public NostrEvent Event { get; set; }
+        public NostrEvent? Event { get; set; }
         public BalanceTopup? Topup { get; set; }
     }
 

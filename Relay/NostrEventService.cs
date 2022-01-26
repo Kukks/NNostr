@@ -97,7 +97,6 @@ namespace Relay
                                 BalanceId = eventsGroupedByAuthorItem.Key,
                                 Timestamp = eventsGroupedByAuthorItemEvt.CreatedAt ?? DateTimeOffset.UtcNow,
                                 Value = cost * -1,
-                                PublicKey = eventsGroupedByAuthorItem.Key,
                                 EventId = eventsGroupedByAuthorItemEvt.Id
                             });
 
