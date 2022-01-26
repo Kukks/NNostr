@@ -38,6 +38,8 @@ namespace Relay
                 builder.WithExpressionExpanding();
             });
             services.AddHostedService<MigrationHostedService>();
+            services.AddHostedService(provider => provider.GetService<EventNostrMessageHandler>());
+            services.AddHostedService<AdminChatBot>();
             services.AddLogging();
             services.AddOptions<RelayOptions>();
             services.AddSingleton<NostrEventService>();
@@ -48,7 +50,8 @@ namespace Relay
             services.AddSingleton<Nip11Middleware>();
             services.AddSingleton<RestMiddleware>();
             services.AddSingleton<INostrMessageHandler, CloseNostrMessageHandler>();
-            services.AddSingleton<INostrMessageHandler, EventNostrMessageHandler>();
+            services.AddSingleton<EventNostrMessageHandler>();
+            services.AddSingleton<INostrMessageHandler, EventNostrMessageHandler>(provider => provider.GetService<EventNostrMessageHandler>());
             services.AddSingleton<INostrMessageHandler, RequestNostrMessageHandler>();
             services.AddSingleton<IHostedService>(provider => provider.GetService<ConnectionManager>());
         }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
@@ -20,7 +21,8 @@ namespace Relay
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
         private readonly IOptions<RelayOptions> _options;
-        public event EventHandler<NostrEventsMatched> EventsMatched;
+        public event EventHandler<NostrEventsMatched>? EventsMatched;
+        public event EventHandler<NostrEvent[]>? NewEvents;
 
         private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
             new();
@@ -32,13 +34,81 @@ namespace Relay
             _options = options;
         }
 
-        public async Task AddEvent(params NostrEvent[] evt)
+        private long ComputeCost(NostrEvent evt)
+        {
+            var adminPubKey = _options.Value.AdminPublicKey;
+            if (evt.PublicKey == _options.Value.AdminPublicKey)
+            {
+                return 0;
+            }
+            if(evt.Kind == 4 && evt.Tags.Any(tag => tag.TagIdentifier == "p" && tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
+            {
+                return 0;
+            }
+
+            if (!_options.Value.EventCostPerByte)
+            {
+                return _options.Value.EventCost;
+            }
+            
+            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson());
+        }
+        
+        public async Task<string[]> AddEvent(params NostrEvent[] evt)
         {
             var evtIds = evt.Select(e => e.Id).ToArray();
             await using var context = await _dbContextFactory.CreateDbContextAsync();
             var alreadyPresentEventIds =
                 await context.Events.Where(e => evtIds.Contains(e.Id)).Select(e => e.Id).ToArrayAsync();
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
+
+            if (_options.Value.EventCost > 0 || _options.Value.PubKeyCost > 0)
+            {
+                var eventsGroupedByAuthor = evt.GroupBy(e => e.PublicKey);
+                var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, NostrEvent>[] ?? eventsGroupedByAuthor.ToArray();
+                var authors = eventsGroupedByAuthorItems.Select(events => events.Key).ToHashSet();
+                var balanceLookup = (await context.Balances.Where(balance => authors.Contains(balance.PublicKey)).ToListAsync()).ToDictionary(balance => balance.PublicKey);
+                
+                var notvalid = new List<NostrEvent>();
+                foreach (var eventsGroupedByAuthorItem in eventsGroupedByAuthorItems)
+                {
+                    balanceLookup.TryGetValue(eventsGroupedByAuthorItem.Key, out var authorBalance);
+                    authorBalance ??= new Balance()
+                    {
+                        CurrentBalance = _options.Value.PubKeyCost * -1,
+                    };
+                    if (authorBalance.CurrentBalance < 0 ||
+                        (authorBalance.CurrentBalance == 0 && _options.Value.EventCost > 0))
+                    {
+                        notvalid.AddRange(eventsGroupedByAuthorItem);
+                    }
+                    foreach (var eventsGroupedByAuthorItemEvt in eventsGroupedByAuthorItem)
+                    {
+                        var cost = ComputeCost(eventsGroupedByAuthorItemEvt);
+                        if ((authorBalance.CurrentBalance - cost) < 0)
+                        {
+                            notvalid.Add(eventsGroupedByAuthorItemEvt);
+                        }
+                        else if (cost != 0)
+                        {
+                            authorBalance.CurrentBalance -= _options.Value.EventCost;
+                            await context.BalanceTransactions.AddAsync(new BalanceTransaction()
+                            {
+                                BalanceId = eventsGroupedByAuthorItem.Key,
+                                Timestamp = eventsGroupedByAuthorItemEvt.CreatedAt ?? DateTimeOffset.UtcNow,
+                                Value = cost * -1,
+                                PublicKey = eventsGroupedByAuthorItem.Key,
+                                EventId = eventsGroupedByAuthorItemEvt.Id
+                            });
+
+                        }
+                    }
+
+                }
+
+                evt = evt.Where(e => !notvalid.Contains(e)).ToArray();
+            }
+            
             _logger.LogInformation($"Saving {evt.Length} new events");
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
@@ -66,7 +136,7 @@ namespace Relay
 
             if (_options.Value.EnableNip09)
             {
-                var deletionEvents = evt.Where(evt => evt.Kind == 5).ToArray();
+                var deletionEvents = evt.Where(e => e.Kind == 5).ToArray();
                 if (deletionEvents.Any())
                 {
                     var eventsToDeleteByPubKey = deletionEvents.Select(evt2 => (evt2.PublicKey, evt2.Tags.FindAll(tag =>
@@ -87,6 +157,8 @@ namespace Relay
 
             await context.Events.AddRangeAsync(evt);
             await context.SaveChangesAsync();
+            NewEvents?.Invoke(this, evt);
+            return evt.Select(e => e.Id).ToArray();
         }
 
         public async Task<(string filterId, NostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)
