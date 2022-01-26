@@ -25,7 +25,7 @@ public class Nip11Middleware : IMiddleware
             context.Request.Headers.Accept.Any(s =>
                 s.Equals("application/nostr+json", StringComparison.InvariantCultureIgnoreCase)))
         {
-            List<int> nips = new() { 5 };
+            List<int> nips = new() { 12 };
 
             if (_options.Value.EnableNip09)
             {

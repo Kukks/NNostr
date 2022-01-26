@@ -40,7 +40,7 @@ namespace Relay
                 var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
                 if (authors?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e => authors.Contains(e.PublicKey));
+                    filterQuery = filterQuery.Where(e =>  authors.Any(s => e.PublicKey.StartsWith(s)));
                 }
 
                 if (filter.EventId?.Any() is true)
@@ -97,7 +97,7 @@ foreach (var filter in filters)
                 var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
                 if (authors?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e => authors.Contains(e.PublicKey));
+                    filterQuery = filterQuery.Where(e =>  authors.Any(s => e.PublicKey.StartsWith(s)));
                 }
 
                 if (filter.EventId?.Any() is true)

@@ -21,8 +21,10 @@ namespace Relay
 
         public Dictionary<string, string[]> GetAdditionalTagFilters()
         {
-            var tagFilters = ExtensionData.Where(pair => pair.Key.StartsWith("#") && pair.Value.ValueKind == JsonValueKind.Array);
-            return tagFilters.ToDictionary(tagFilter => tagFilter.Key.Substring(1), tagFilter => tagFilter.Value.EnumerateArray().ToEnumerable().Select(element => element.GetString()).ToArray()!)!;
+            var tagFilters = ExtensionData?.Where(pair => pair.Key.StartsWith("#") && pair.Value.ValueKind == JsonValueKind.Array);
+            return tagFilters?.ToDictionary(tagFilter => tagFilter.Key.Substring(1),
+                tagFilter => tagFilter.Value.EnumerateArray().ToEnumerable().Select(element => element.GetString())
+                    .ToArray())! ?? new Dictionary<string, string[]>();
         }
 
     }
