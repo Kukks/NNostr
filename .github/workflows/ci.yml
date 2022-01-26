@@ -27,6 +27,8 @@ jobs:
           PACKAGE_NAME: NNostr.Client
           INCLUDE_SYMBOLS: false
           VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
+          TAG_COMMIT: true
+          TAG_FORMAT: NNostr.Client/v*
       - name: Publish Github Package Registry
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
         uses: Rebel028/publish-nuget@v2.6.3

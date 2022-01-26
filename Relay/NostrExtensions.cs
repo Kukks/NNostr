@@ -1,12 +1,6 @@
-using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
-using System.Text;
-using NBitcoin.Secp256k1;
 using NNostr.Client;
-using Relay.Data;
 
 namespace Relay
 {
@@ -25,7 +19,7 @@ namespace Relay
                 }
                 if (filter.Ids?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e =>  filter.Ids.Contains(e.Id));
+                    filterQuery = filterQuery.Where(e =>  filter.Ids.Any(s => e.Id.StartsWith(s)));
                 }
 
                 if (filter.Kinds?.Any() is true)
@@ -60,6 +54,9 @@ namespace Relay
                     filterQuery = filterQuery.Where(e =>
                         e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[1])));
                 }
+
+                var tagFilters = filter.GetAdditionalTagFilters();
+                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1]))));
 
                 result = result is null ? filterQuery : result.Union(filterQuery);
 
@@ -70,7 +67,7 @@ namespace Relay
         public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, bool includeDeleted = false, params NostrSubscriptionFilter[] filters)
         {
             IEnumerable<NostrEvent> result = null;
-            foreach (var filter in filters)
+foreach (var filter in filters)
             {
                 var filterQuery = events;
                 if (!includeDeleted)
@@ -79,7 +76,7 @@ namespace Relay
                 }
                 if (filter.Ids?.Any() is true)
                 {
-                    filterQuery = filterQuery.Where(e =>  filter.Ids.Contains(e.Id));
+                    filterQuery = filterQuery.Where(e =>  filter.Ids.Any(s => e.Id.StartsWith(s)));
                 }
 
                 if (filter.Kinds?.Any() is true)
@@ -114,6 +111,9 @@ namespace Relay
                     filterQuery = filterQuery.Where(e =>
                         e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[1])));
                 }
+
+                var tagFilters = filter.GetAdditionalTagFilters();
+                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1]))));
 
                 result = result is null ? filterQuery : result.Union(filterQuery);
 
