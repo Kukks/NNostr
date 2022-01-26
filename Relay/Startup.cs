@@ -44,6 +44,7 @@ namespace Relay
             services.AddSingleton<WebSocketHandler>();
             services.AddSingleton<WebsocketMiddleware>();
             services.AddSingleton<Nip11Middleware>();
+            services.AddSingleton<RestMiddleware>();
             services.AddSingleton<INostrMessageHandler, CloseNostrMessageHandler>();
             services.AddSingleton<INostrMessageHandler, EventNostrMessageHandler>();
             services.AddSingleton<INostrMessageHandler, RequestNostrMessageHandler>();
@@ -63,6 +64,7 @@ namespace Relay
             app.UseWebSockets();
             app.UseMiddleware<WebsocketMiddleware>();
             app.UseMiddleware<Nip11Middleware>();
+            app.UseMiddleware<RestMiddleware>();
         }
     }
 }

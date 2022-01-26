@@ -96,6 +96,17 @@ namespace Relay
             return (id, await CachedFilterResults.GetOrAddAsync(id, GetFromDB));
         }
 
+        public async Task<NostrEvent[]> FetchData(params NostrSubscriptionFilter[] filter)
+        {
+            var result = new List<NostrEvent>();
+            foreach (var nostrSubscriptionFilter in filter)
+            {
+                var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().ToHex();
+                result.AddRange(await CachedFilterResults.GetOrAddAsync(id, s =>  GetFromDB(nostrSubscriptionFilter)));
+            }
+            return result.Distinct().ToArray();
+        }
+
         private async Task<NostrEvent[]> GetFromDB(string filterId)
         {
             if (ActiveFilters.TryGetValue(filterId, out var filter))
