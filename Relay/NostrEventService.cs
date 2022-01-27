@@ -154,6 +154,7 @@ namespace Relay
                 }
             }
 
+            await context.EventTags.AddRangeAsync(evt.SelectMany(e => e.Tags));
             await context.Events.AddRangeAsync(evt);
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);

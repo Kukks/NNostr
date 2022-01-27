@@ -48,13 +48,13 @@ namespace Relay
                 if (filter.EventId?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[1])));
+                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
                 }
 
                 if (filter.PublicKey?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[1])));
+                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
                 }
 
                 var tagFilters = filter.GetAdditionalTagFilters();
@@ -105,17 +105,17 @@ foreach (var filter in filters)
                 if (filter.EventId?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[1])));
+                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
                 }
 
                 if (filter.PublicKey?.Any() is true)
                 {
                     filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[1])));
+                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
                 }
 
                 var tagFilters = filter.GetAdditionalTagFilters();
-                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1]))));
+                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery, (current, tagFilter) => current.Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0]))));
 
                 result = result is null ? filterQuery : result.Union(filterQuery);
 

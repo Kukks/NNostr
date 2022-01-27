@@ -1,11 +1,14 @@
 using System;
 using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading.Tasks;
+using BTCPayServer.Client;
+using BTCPayServer.Client.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
+using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Relay;
 
@@ -13,11 +16,13 @@ public class RestMiddleware : IMiddleware
 {
     private readonly IOptions<RelayOptions> _options;
     private readonly NostrEventService _nostrEventService;
+    private readonly BTCPayServerService _btcPayServerService;
 
-    public RestMiddleware(IOptions<RelayOptions> options, NostrEventService nostrEventService)
+    public RestMiddleware(IOptions<RelayOptions> options, NostrEventService nostrEventService, BTCPayServerService btcPayServerService)
     {
         _options = options;
         _nostrEventService = nostrEventService;
+        _btcPayServerService = btcPayServerService;
     }
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
@@ -28,28 +33,27 @@ public class RestMiddleware : IMiddleware
         {
             using var streamReader = new StreamReader(context.Request.Body);
             var body = await streamReader.ReadToEndAsync();
-            var filters = JsonSerializer.Deserialize<NostrSubscriptionFilter[]>(body);
-            var evts = await _nostrEventService.FetchData(filters);
 
-            context.Response.Clear();
-            context.Response.StatusCode = 200;
-            context.Response.ContentType = "application/json";
+            if (context.Request.Path.Value?.EndsWith("api/req", StringComparison.InvariantCultureIgnoreCase) is true)
+            {
+                var filters = JsonSerializer.Deserialize<NostrSubscriptionFilter[]>(body);
+                var evts = await _nostrEventService.FetchData(filters);
 
-            await context.Response.WriteAsync(JsonSerializer.Serialize(evts));
+                context.Response.Clear();
+                context.Response.StatusCode = 200;
+                context.Response.ContentType = "application/json";
+
+                await context.Response.WriteAsync(JsonSerializer.Serialize(evts));
+            }else if (context.Request.Path.Value?.EndsWith("btcpay/webhook", StringComparison.InvariantCultureIgnoreCase) is
+                      true)
+            {
+                var evt = JsonConvert.DeserializeObject<WebhookInvoiceEvent>(body);
+                var i = await _btcPayServerService.HandleInvoice(evt.InvoiceId);
+            }
+            
             return;
         }
 
         await next.Invoke(context);
-    }
-
-    public class Nip11Response
-    {
-        [JsonPropertyName("name")] public string Name { get; set; }
-        [JsonPropertyName("description")] public string Description { get; set; }
-        [JsonPropertyName("pubkey")] public string PubKey { get; set; }
-        [JsonPropertyName("contact")] public string Contact { get; set; }
-        [JsonPropertyName("supported_nips")] public int[] SupportedNips { get; set; }
-        [JsonPropertyName("software")] public string Software { get; set; }
-        [JsonPropertyName("version")] public string Version { get; set; }
     }
 }

@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Concurrent;
+using System.Linq;
 using System.Net.WebSockets;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using LinqKit;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using NNostr.Client;
@@ -39,11 +41,30 @@ namespace Relay
 
         private async Task NostrEventServiceOnEventsMatched(NostrEventsMatched e)
         {
-            if (!_stateManager.FilterToConnection.TryGetValue(e.FilterId, out var connections)) return;
+
+            var subscriptions = _stateManager.SubscriptionToFilter.Where(pair => pair.Value.Contains(e.FilterId)).Select(pair => pair.Key);
+
+            var connections =
+                _stateManager.ConnectionToSubscriptions.Where(pair => pair.Value.Any(s => subscriptions.Contains(s)));
+
             foreach (var connection in connections)
             {
-                await _stateManager.PendingMessages.Writer.WriteAsync(
-                    new Tuple<string, string>(connection, JsonSerializer.Serialize(e.Events)));
+                foreach (var subscription in subscriptions)
+                {
+                    if (connection.Value.Contains(subscription))
+                    {
+                        foreach (var nostrEvent in e.Events)
+                        {
+                            await _stateManager.PendingMessages.Writer.WriteAsync(new Tuple<string, string>(connection.Key,
+                                JsonSerializer.Serialize(new object[]
+                                {
+                                    "EVENT", subscription, nostrEvent
+                                })));
+                        }
+                        
+
+                    }
+                }
             }
         }
 

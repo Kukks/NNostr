@@ -16,21 +16,22 @@ using Relay.Data;
 
 namespace Relay;
 
-public class AdminChatBot:IHostedService
+public class AdminChatBot : IHostedService
 {
     private readonly NostrEventService _nostrEventService;
     private readonly IOptions<RelayOptions> _options;
     private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
-    private readonly BTCPayServerClient _btcPayServerClient;
+    private readonly BTCPayServerService _btcPayServerService;
 
     private readonly Channel<NostrEvent> PendingMessages = Channel.CreateUnbounded<NostrEvent>();
-    public AdminChatBot(NostrEventService nostrEventService, IOptions<RelayOptions> options, IDbContextFactory<RelayDbContext> dbContextFactory,
-        BTCPayServerClient btcPayServerClient)
+
+    public AdminChatBot(NostrEventService nostrEventService, IOptions<RelayOptions> options,
+        IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService)
     {
         _nostrEventService = nostrEventService;
         _options = options;
         _dbContextFactory = dbContextFactory;
-        _btcPayServerClient = btcPayServerClient;
+        _btcPayServerService = btcPayServerService;
         _nostrEventService.NewEvents += NostrEventServiceOnNewEvents;
     }
 
@@ -40,9 +41,8 @@ public class AdminChatBot:IHostedService
         {
             PendingMessages.Writer.TryWrite(nostrEvent);
         }
-
     }
-    
+
     private async Task ProcessMessages(CancellationToken cancellationToken)
     {
         while (await PendingMessages.Reader.WaitToReadAsync(cancellationToken))
@@ -57,7 +57,9 @@ public class AdminChatBot:IHostedService
     private async Task HandleMessage(NostrEvent evt)
     {
         var adminPubKey = _options.Value.AdminPublicKey;
-        if(!string.IsNullOrEmpty(adminPubKey) && evt.Kind == 4 && evt.Tags.Any(tag => tag.TagIdentifier == "p" && tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
+        if (!string.IsNullOrEmpty(adminPubKey) && evt.Kind == 4 && evt.Tags.Any(tag =>
+                tag.TagIdentifier == "p" &&
+                tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
             //we have a dm!
             if (evt.Content.StartsWith("/"))
@@ -71,44 +73,38 @@ public class AdminChatBot:IHostedService
                         await using var context = await _dbContextFactory.CreateDbContextAsync();
                         var topup = await context.BalanceTopups.FirstOrDefaultAsync(topup =>
                             topup.BalanceId == evt.PublicKey && topup.Status == BalanceTopup.TopupStatus.Pending);
-                        InvoiceData i = null;
                         Balance? b = null;
+
+                        InvoiceData i = null;
                         if (topup is not null)
                         {
-                            i = await _btcPayServerClient.GetInvoice(_options.Value.BTCPayServerStoreId, topup.Id);
-                            if (i.Status != InvoiceStatus.New)
+                            var status = await _btcPayServerService.HandleInvoice(topup.Id);
+                            topup.Status = status.status;
+                            if (topup.Status == BalanceTopup.TopupStatus.Complete)
                             {
-                                if (i.Status == InvoiceStatus.Expired || i.Status == InvoiceStatus.Invalid)
+                                await context.BalanceTransactions.AddAsync(new BalanceTransaction()
                                 {
-                                    topup.Status = BalanceTopup.TopupStatus.Expired;
-                                    topup = null;
-                                }
+                                    Event = null,
+                                    BalanceTopupId = topup.Id,
+                                    BalanceId = topup.BalanceId,
+                                    Timestamp = DateTimeOffset.UtcNow,
+                                    Value = status.value,
+                                });
 
-                                if (i.Status == InvoiceStatus.Settled)
-                                {
-                                    var invoicePaymentMethods= await _btcPayServerClient.GetInvoicePaymentMethods(i.StoreId, i.Id);
-
-                                    var val = Money.FromUnit(i.Amount, MoneyUnit.BTC).Satoshi;
-                                    topup.Status = BalanceTopup.TopupStatus.Complete;
-                                    await context.BalanceTransactions.AddAsync(new BalanceTransaction()
-                                    {
-                                        Event = null,
-                                        BalanceTopupId = topup.Id,
-                                        BalanceId = topup.BalanceId,
-                                        Timestamp = new DateTimeOffset(invoicePaymentMethods
-                                            .SelectMany(model => model.Payments)
-                                            .OrderByDescending(payment => payment.ReceivedDate).FirstOrDefault()
-                                            ?.ReceivedDate ?? DateTime.UtcNow),
-                                        Value = val,
-                                        
-                                    });
-                                    
-                                    b = await context.Balances.FindAsync(evt.PublicKey);
-                                    b!.CurrentBalance += val;
-                                    topup = null;
-                                }
+                                b = await context.Balances.FindAsync(evt.PublicKey);
+                                b!.CurrentBalance += status.value;
+                                topup = null;
+                            }
+                            else if (topup.Status == BalanceTopup.TopupStatus.Expired)
+                            {
+                                topup = null;
+                            }
+                            else
+                            {
+                                i = status.invoiceData;
                             }
                         }
+
                         if (topup is null)
                         {
                             b ??= await context.Balances.FindAsync(evt.PublicKey);
@@ -122,21 +118,7 @@ public class AdminChatBot:IHostedService
                                 await context.Balances.AddAsync(b);
                             }
 
-                            i = await _btcPayServerClient.CreateInvoice(_options.Value.BTCPayServerStoreId,
-                                new CreateInvoiceRequest()
-                                {
-                                    Type = InvoiceType.TopUp,
-                                    Currency = "BTC",
-                                    Metadata = JObject.FromObject(new
-                                    {
-                                        evt.PublicKey
-                                    }),
-                                    Checkout = new InvoiceDataBase.CheckoutOptions()
-                                    {
-                                        Expiration = TimeSpan.MaxValue
-                                    },
-                                    AdditionalSearchTerms = new []{"nostr", evt.PublicKey}
-                                });
+                            i = await _btcPayServerService.CreateInvoice(evt.PublicKey);
                             topup = new BalanceTopup()
                             {
                                 Status = BalanceTopup.TopupStatus.Pending,
@@ -146,6 +128,7 @@ public class AdminChatBot:IHostedService
 
                             await context.BalanceTopups.AddAsync(topup);
                         }
+
                         var eventReply = new NostrEvent()
                         {
                             Content = $"Topup here: {i.CheckoutLink}",
@@ -176,7 +159,7 @@ public class AdminChatBot:IHostedService
                         await _nostrEventService.AddEvent(eventReply);
                         break;
                     }
-                    
+
                     case "balance":
                     {
                         await using var context = await _dbContextFactory.CreateDbContextAsync();

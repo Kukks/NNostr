@@ -28,6 +28,7 @@ namespace Relay.JsonConverters
                     result.Data.Add(reader.GetString());
                 }
 
+                reader.Read();
                 i++;
             }
 

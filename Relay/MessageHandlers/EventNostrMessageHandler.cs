@@ -38,9 +38,6 @@ namespace Relay
                     }
                 }
             }
-            
-            
-           
         }
 
         public async Task Handle(string connectionId, string msg)
