@@ -25,7 +25,7 @@ public class RelayOptions
             }
 
             var key = Encoders.Hex.DecodeData(AdminKey);
-            return ECPrivKey.TryCreateFromDer(key, out var privKey) ? privKey : null;
+            return NBitcoin.Secp256k1.ECPrivKey.TryCreate(key, out var privKey) ? privKey : null;
         }
     }
 

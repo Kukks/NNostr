@@ -24,6 +24,7 @@ namespace Relay.Data
         public DateTimeOffset Timestamp { get; set; }
         public NostrEvent? Event { get; set; }
         public BalanceTopup? Topup { get; set; }
+        public Balance Balance { get; set; }
     }
 
 
@@ -36,6 +37,7 @@ namespace Relay.Data
 
         public List<BalanceTransaction> BalanceTransactions { get; set; }
 
+        public Balance Balance { get; set; }
         public enum TopupStatus
         {
             Pending,

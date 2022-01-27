@@ -34,15 +34,18 @@ namespace Relay
             _options = options;
         }
 
-        private long ComputeCost(NostrEvent evt)
+        private long ComputeCost(NostrEvent evt, out bool isToAdmin)
         {
             var adminPubKey = _options.Value.AdminPublicKey;
-            if (evt.PublicKey == _options.Value.AdminPublicKey)
+            isToAdmin = false;
+            if (evt.PublicKey == adminPubKey)
             {
+                isToAdmin = true;
                 return 0;
             }
             if(evt.Kind == 4 && evt.Tags.Any(tag => tag.TagIdentifier == "p" && tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
             {
+                isToAdmin = true;
                 return 0;
             }
 
@@ -77,15 +80,15 @@ namespace Relay
                     {
                         CurrentBalance = _options.Value.PubKeyCost * -1,
                     };
-                    if (authorBalance.CurrentBalance < 0 ||
-                        (authorBalance.CurrentBalance == 0 && _options.Value.EventCost > 0))
-                    {
-                        notvalid.AddRange(eventsGroupedByAuthorItem);
-                    }
+                    // if (authorBalance.CurrentBalance < 0 ||
+                    //     (authorBalance.CurrentBalance == 0 && _options.Value.EventCost > 0))
+                    // {
+                    //     notvalid.AddRange(eventsGroupedByAuthorItem);
+                    // }
                     foreach (var eventsGroupedByAuthorItemEvt in eventsGroupedByAuthorItem)
                     {
-                        var cost = ComputeCost(eventsGroupedByAuthorItemEvt);
-                        if ((authorBalance.CurrentBalance - cost) < 0)
+                        var cost = ComputeCost(eventsGroupedByAuthorItemEvt, out var isToAdmin);
+                        if (!isToAdmin && (authorBalance.CurrentBalance - cost) < 0)
                         {
                             notvalid.Add(eventsGroupedByAuthorItemEvt);
                         }

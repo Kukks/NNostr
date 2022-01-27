@@ -52,7 +52,7 @@ namespace Relay
             services.AddHostedService(provider => provider.GetService<BTCPayServerService>());
             services.AddHostedService<AdminChatBot>();
             services.AddLogging();
-            services.AddOptions<RelayOptions>();
+            services.AddOptions<RelayOptions>().Bind(_configuration);
             services.AddSingleton<NostrEventService>();
             services.AddSingleton<BTCPayServerService>();
             services.AddSingleton<StateManager>();

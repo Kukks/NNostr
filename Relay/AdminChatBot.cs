@@ -61,10 +61,11 @@ public class AdminChatBot : IHostedService
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
+            var content = evt.DecryptNip04Event(_options.Value.AdminPrivateKey);
             //we have a dm!
-            if (evt.Content.StartsWith("/"))
+            if (content.StartsWith("/"))
             {
-                var split = evt.Content.Substring(1).Split(" ", StringSplitOptions.RemoveEmptyEntries);
+                var split = content.Substring(1).Split(" ", StringSplitOptions.RemoveEmptyEntries);
                 var args = split.Skip(1).ToArray();
                 switch (split[0].ToLowerInvariant())
                 {
@@ -166,7 +167,7 @@ public class AdminChatBot : IHostedService
                         var b = await context.Balances.FindAsync(evt.PublicKey);
                         var eventReply = new NostrEvent()
                         {
-                            Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost}.",
+                            Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost*-1}.",
                             Kind = 4,
                             PublicKey = _options.Value.AdminPublicKey,
                             Tags = new List<NostrEventTag>()
