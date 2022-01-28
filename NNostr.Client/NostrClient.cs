@@ -91,8 +91,11 @@ namespace NNostr.Client
             {
                 case "event":
                     var subscriptionId = json[1].GetRawText();
-                    var evts = json[2].Deserialize<NostrEvent[]>()!.Where(evt => evt.Verify()).ToArray();
-                    EventsReceived.Invoke(this, (subscriptionId, evts));
+                    var evt = json[2].Deserialize<NostrEvent>();
+                    if (evt?.Verify() is true)
+                    {
+                        EventsReceived.Invoke(this, (subscriptionId, new []{evt}));
+                    }
                     break;
                 case "notice":
                     var noticeMessage = json[1].GetRawText();
