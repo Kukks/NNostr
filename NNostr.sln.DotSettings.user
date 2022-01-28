@@ -2,12 +2,12 @@
 	<s:String x:Key="/Default/Environment/AssemblyExplorer/XmlDocument/@EntryValue">&lt;AssemblyExplorer&gt;&#xD;
   &lt;Assembly Path="C:\Users\evilk\.nuget\packages\nbitcoin.secp256k1\1.0.10\lib\netcoreapp2.1\NBitcoin.Secp256k1.dll" /&gt;&#xD;
 &lt;/AssemblyExplorer&gt;</s:String>
-	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=22d44596_002Da174_002D4325_002D90df_002D38d748969f9d/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="Test1 #3" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=22d44596_002Da174_002D4325_002D90df_002D38d748969f9d/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Test1 #3" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;xUnit::600B2A11-CDB1-4E91-BAC9-39AEC3B45393::net5.0::NNostr.Tests.UnitTest1.Test1&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
-	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=2e23f3bd_002D1ae9_002D4c19_002D843c_002D50f796f3bdd4/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="Test1" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
+	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=2e23f3bd_002D1ae9_002D4c19_002D843c_002D50f796f3bdd4/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="Test1" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
     &lt;TestId&gt;xUnit::600B2A11-CDB1-4E91-BAC9-39AEC3B45393::net5.0::NNostr.Tests.UnitTest1.Test1&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
@@ -17,4 +17,7 @@
     &lt;TestId&gt;xUnit::600B2A11-CDB1-4E91-BAC9-39AEC3B45393::net5.0::NNostr.Tests.UnitTest1.Test1&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
+	
+	
+	
 	</wpf:ResourceDictionary>
