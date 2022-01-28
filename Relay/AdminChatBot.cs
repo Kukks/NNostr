@@ -8,6 +8,7 @@ using BTCPayServer.Client;
 using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NBitcoin;
 using Newtonsoft.Json.Linq;
@@ -22,16 +23,18 @@ public class AdminChatBot : IHostedService
     private readonly IOptions<RelayOptions> _options;
     private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
     private readonly BTCPayServerService _btcPayServerService;
+    private readonly ILogger<AdminChatBot> _logger;
 
     private readonly Channel<NostrEvent> PendingMessages = Channel.CreateUnbounded<NostrEvent>();
 
     public AdminChatBot(NostrEventService nostrEventService, IOptions<RelayOptions> options,
-        IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService)
+        IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService, ILogger<AdminChatBot> logger)
     {
         _nostrEventService = nostrEventService;
         _options = options;
         _dbContextFactory = dbContextFactory;
         _btcPayServerService = btcPayServerService;
+        _logger = logger;
         _nostrEventService.NewEvents += NostrEventServiceOnNewEvents;
     }
 
@@ -167,7 +170,7 @@ public class AdminChatBot : IHostedService
                         var b = await context.Balances.FindAsync(evt.PublicKey);
                         var eventReply = new NostrEvent()
                         {
-                            Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost*-1}.",
+                            Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost * -1}.",
                             Kind = 4,
                             PublicKey = _options.Value.AdminPublicKey,
                             Tags = new List<NostrEventTag>()
@@ -191,7 +194,9 @@ public class AdminChatBot : IHostedService
                             }
                         };
                         eventReply.EncryptNip04Event(_options.Value.AdminPrivateKey);
+                        eventReply.Id = eventReply.ToJson().ComputeSha256Hash().ToHex();
                         eventReply.Signature = eventReply.ComputeSignature(_options.Value.AdminPrivateKey);
+                        _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
                         await _nostrEventService.AddEvent(eventReply);
                         break;
                     }

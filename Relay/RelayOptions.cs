@@ -7,13 +7,17 @@ namespace Relay;
 
 public class RelayOptions
 {
+    //cost in sats per event
     public long EventCost { get; set; } = 0;
+    //whether the cost is per byte of the event json
     public bool EventCostPerByte { get; set; } = false;
+    //cost for a new pubkey to post events to relay
     public long PubKeyCost { get; set; } = 0;
+    //priv key of admin bot
+    public string? AdminKey { get; set; }
+    
     public bool EnableNip09 { get; set; } = true;
     public bool EnableNip11 { get; set; } = true;
-
-    public string? AdminKey { get; set; }
 
     public ECPrivKey? AdminPrivateKey
     {
