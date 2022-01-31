@@ -42,5 +42,17 @@ namespace NNostr.Client
         {
             return Context.Instance.CreateXOnlyPubKey(nostrEvent.PublicKey.DecodHexData());
         }
+
+        public static ECPrivKey ParseKey(string key)
+        {
+            return ECPrivKey.Create(key.DecodHexData());
+        }
+        
+        public static string ToString(this ECPrivKey key)
+        {
+            Span<byte> output = new Span<byte>(new byte[32]);
+            key.WriteToSpan(output);
+            return output.ToHex();
+        }
     }
 }

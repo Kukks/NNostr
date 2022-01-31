@@ -1,13 +1,5 @@
-using System;
-using System;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Linq.Expressions;
 using System.Text;
 using NBitcoin.Secp256k1;
-using NNostr.Client;
-using Relay.Data;
 
 namespace NNostr.Client
 {
@@ -74,7 +66,23 @@ namespace NNostr.Client
             var builder = new StringBuilder();
             foreach (var t in bytes)
             {
-                builder.Append(t.ToString("x2"));
+                builder.Append(t.ToHex());
+            }
+
+            return builder.ToString();
+        }
+
+        private static string ToHex(this byte b)
+        {
+            return b.ToString("x2");
+        }
+
+        public static string ToHex(this Span<byte> bytes)
+        {
+            var builder = new StringBuilder();
+            foreach (var t in bytes)
+            {
+                builder.Append(t.ToHex());
             }
 
             return builder.ToString();
