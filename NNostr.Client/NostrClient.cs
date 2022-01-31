@@ -35,7 +35,7 @@ namespace NNostr.Client
             while (!_Cts.IsCancellationRequested)
             {
                 await ConnectAndWaitUntilConnected(_Cts.Token);
-
+                _ = ListenForMessages();
                 websocket!.Abort();
             }
         }
@@ -140,7 +140,7 @@ namespace NNostr.Client
             Disconnect();
         }
 
-        private async Task ConnectAndWaitUntilConnected(CancellationToken token)
+        public async Task ConnectAndWaitUntilConnected(CancellationToken token)
         {
             if (websocket?.State == WebSocketState.Open)
             {
