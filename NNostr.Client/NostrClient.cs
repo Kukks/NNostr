@@ -12,7 +12,6 @@ namespace NNostr.Client
         protected ClientWebSocket? websocket;
         private CancellationTokenSource? _Cts;
         private CancellationTokenSource messageCts = new();
-        
         public NostrClient(Uri relay)
         {
             _relay = relay;
@@ -41,7 +40,7 @@ namespace NNostr.Client
             }
         }
 
-        private async Task ListenForMessages()
+        public async Task ListenForMessages()
         {
             while (websocket!.State == WebSocketState.Open && !_Cts!.IsCancellationRequested)
             {
@@ -156,8 +155,6 @@ namespace NNostr.Client
             {
                 await Task.Delay(100, cts.Token);
             }
-
-            _ = ListenForMessages();
         }
     }
 }
