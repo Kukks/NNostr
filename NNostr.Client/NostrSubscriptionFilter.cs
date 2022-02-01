@@ -1,10 +1,8 @@
-using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using NNostr.Client;
 using Relay.Data;
 
-namespace Relay
+namespace NNostr.Client
 {
     public class NostrSubscriptionFilter
     {
@@ -16,7 +14,7 @@ namespace Relay
         [JsonPropertyName("since")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Since { get; set; }
         [JsonPropertyName("until")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Until { get; set; }
         
-        [JsonExtensionDataAttribute]
+        [JsonExtensionData]
         public IDictionary<string, JsonElement> ExtensionData { get; set; }
 
         public Dictionary<string, string[]> GetAdditionalTagFilters()

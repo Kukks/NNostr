@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>10</LangVersion>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <PackageVersion>0.0.7</PackageVersion>
+        <PackageVersion>0.0.8</PackageVersion>
         <Title>Nostr Client</Title>
         <Description>A client for Nostr</Description>
         <Copyright>MIT</Copyright>
@@ -18,6 +18,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="LinqKit.Core" Version="1.2.0" />
         <PackageReference Include="NBitcoin.Secp256k1" Version="2.0.2" />
         <PackageReference Include="System.Text.Json" Version="6.0.1" />
     </ItemGroup>

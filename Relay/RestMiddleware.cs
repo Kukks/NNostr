@@ -8,6 +8,7 @@ using BTCPayServer.Client.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
+using NNostr.Client;
 using JsonSerializer = System.Text.Json.JsonSerializer;
 
 namespace Relay;
