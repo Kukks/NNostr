@@ -50,7 +50,7 @@ namespace NNostr.Client
             var bytes = rawData.ComputeSha256Hash();
             var buf = new byte[64];
             privKey.SignBIP340(bytes).WriteToSpan(buf);
-            return bytes.ToHex();
+            return buf.ToHex();
         }
 
         public static byte[] ComputeSha256Hash(this string rawData)
