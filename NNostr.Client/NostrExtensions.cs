@@ -8,7 +8,7 @@ namespace NNostr.Client
         public static string ToJson(this NostrEvent nostrEvent, bool withoutId)
         {
             return
-                $"[{(withoutId? 0: nostrEvent.Id)},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],\"{nostrEvent.Content}\"]";
+                $"[{(withoutId? 0: $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],\"{nostrEvent.Content}\"]";
         }
 
         public static string ComputeId(this NostrEvent nostrEvent)
