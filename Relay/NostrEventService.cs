@@ -54,7 +54,7 @@ namespace Relay
                 return _options.Value.EventCost;
             }
             
-            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson());
+            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson(false));
         }
         
         public async Task<string[]> AddEvent(params NostrEvent[] evt)

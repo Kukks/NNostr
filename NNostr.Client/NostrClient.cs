@@ -118,7 +118,7 @@ namespace NNostr.Client
 
         public async Task PublishEvent(NostrEvent nostrEvent, CancellationToken token = default)
         {
-            var payload = $"[ \"EVENT\", \"{nostrEvent.ToJson(false)}\"]";
+            var payload = $"[\"EVENT\",{nostrEvent.ToJson(false)}]";
             await websocket.SendMessageAsync(payload, token);
         }
 
