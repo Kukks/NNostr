@@ -5,25 +5,35 @@ namespace NNostr.Client
 {
     public static class NostrExtensions
     {
-        public static string ToJson(this NostrEvent nostrEvent)
+        public static string ToJson(this NostrEvent nostrEvent, bool withoutId)
         {
             return
-                $"[0,\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],\"{nostrEvent.Content}\"]";
+                $"[{(withoutId? 0: nostrEvent.Id)},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag.ToString()))}],\"{nostrEvent.Content}\"]";
         }
 
         public static string ComputeId(this NostrEvent nostrEvent)
         {
-            return nostrEvent.ToJson().ComputeSha256Hash().ToHex();
+            return nostrEvent.ToJson(true).ComputeSha256Hash().ToHex();
         }
 
         public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv)
         {
-            return nostrEvent.ToJson().ComputeSignature(priv);
+            return nostrEvent.ToJson(true).ComputeSignature(priv);
+        }
+
+        public static void ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true)
+        {
+            if (handlenip4 && nostrEvent.Kind == 4)
+            {
+                nostrEvent.EncryptNip04Event(priv);
+            }
+            nostrEvent.Id = nostrEvent.ComputeId();
+            nostrEvent.Signature = nostrEvent.ComputeSignature(priv);
         }
 
         public static bool Verify(this NostrEvent nostrEvent)
         {
-            var hash = nostrEvent.ToJson().ComputeSha256Hash();
+            var hash = nostrEvent.ToJson(true).ComputeSha256Hash();
             if (hash.ToHex() != nostrEvent.Id)
             {
                 return false;

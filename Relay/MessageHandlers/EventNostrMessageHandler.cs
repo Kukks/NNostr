@@ -1,3 +1,4 @@
+using System;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
@@ -16,6 +17,7 @@ namespace Relay
         private const string PREFIX = "EVENT";
 
         private readonly Channel<(string, string)> PendingMessages = Channel.CreateUnbounded<(string, string)>();
+
         public EventNostrMessageHandler(NostrEventService nostrEventService, ILogger<EventNostrMessageHandler> logger)
         {
             _nostrEventService = nostrEventService;
@@ -24,17 +26,23 @@ namespace Relay
 
         private async Task ProcessEventMessages(CancellationToken cancellationToken)
         {
-            
             while (await PendingMessages.Reader.WaitToReadAsync(cancellationToken))
             {
                 if (PendingMessages.Reader.TryRead(out var evt))
                 {
-                    _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
-                    var json = JsonDocument.Parse(evt.Item2).RootElement;
-                    var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
-                    if (e.Verify())
+                    try
                     {
-                        await _nostrEventService.AddEvent(e);
+                        _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
+                        var json = JsonDocument.Parse(evt.Item2).RootElement;
+                        var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
+                        if (e.Verify())
+                        {
+                            await _nostrEventService.AddEvent(e);
+                        }
+                    }
+                    catch (Exception exception)
+                    {
+                        _logger.LogError(exception, "failed to handle event message");
                     }
                 }
             }
@@ -46,9 +54,8 @@ namespace Relay
             {
                 return;
             }
-            
-            await PendingMessages.Writer.WriteAsync((connectionId, msg));
 
+            await PendingMessages.Writer.WriteAsync((connectionId, msg));
         }
 
         public Task StartAsync(CancellationToken cancellationToken)
