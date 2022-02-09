@@ -19,8 +19,8 @@ namespace Relay
         public MultiValueDictionary<string, string> FilterToConnection =
             new();
 
-        public readonly Channel<Tuple<string, string>> PendingMessages =
-            Channel.CreateUnbounded<Tuple<string, string>>();
+        public readonly Channel<(string connectionId, string message)> PendingMessages =
+            Channel.CreateUnbounded<(string, string)>();
 
 
         public void RemoveSubscription(string connectionId, string id, out List<string> orphanedFilters)

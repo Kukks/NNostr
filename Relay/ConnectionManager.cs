@@ -55,7 +55,7 @@ namespace Relay
                     {
                         foreach (var nostrEvent in e.Events)
                         {
-                            await _stateManager.PendingMessages.Writer.WriteAsync(new Tuple<string, string>(connection.Key,
+                            await _stateManager.PendingMessages.Writer.WriteAsync((connection.Key,
                                 JsonSerializer.Serialize(new object[]
                                 {
                                     "EVENT", subscription, nostrEvent

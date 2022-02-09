@@ -160,7 +160,7 @@ public class AdminChatBot : IHostedService
                         };
                         eventReply.EncryptNip04Event(_options.Value.AdminPrivateKey);
                         eventReply.Signature = eventReply.ComputeSignature(_options.Value.AdminPrivateKey);
-                        await _nostrEventService.AddEvent(eventReply);
+                        await _nostrEventService.AddEvent(new []{eventReply});
                         break;
                     }
 
@@ -195,7 +195,7 @@ public class AdminChatBot : IHostedService
                         };
                         eventReply.ComputeIdAndSign(_options.Value.AdminPrivateKey);
                         _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
-                        await _nostrEventService.AddEvent(eventReply);
+                        await _nostrEventService.AddEvent(new []{eventReply});
                         break;
                     }
                 }

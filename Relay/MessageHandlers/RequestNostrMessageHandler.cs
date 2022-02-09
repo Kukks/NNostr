@@ -74,7 +74,7 @@ namespace Relay
                     }
                 }
 
-            await _stateManager.PendingMessages.Writer.WriteAsync(new Tuple<string, string>(connectionId,
+            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
                 JsonSerializer.Serialize(results.Aggregate(
                     (events, nostrEvents) =>
                         events.Union(nostrEvents).ToArray()))));

@@ -57,7 +57,7 @@ namespace Relay
             return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson(false));
         }
         
-        public async Task<string[]> AddEvent(params NostrEvent[] evt)
+        public async Task<string[]> AddEvent(NostrEvent[] evt)
         {
             var evtIds = evt.Select(e => e.Id).ToArray();
             await using var context = await _dbContextFactory.CreateDbContextAsync();

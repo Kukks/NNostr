@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Channels;
@@ -12,10 +13,12 @@ namespace NNostr.Client
         protected ClientWebSocket? websocket;
         private CancellationTokenSource? _Cts;
         private CancellationTokenSource messageCts = new();
+
         public NostrClient(Uri relay)
         {
             _relay = relay;
-            _ = ProcessSendMessages(messageCts.Token);
+            _ = ProcessChannel(PendingIncomingMessages, HandleIncomingMessage, messageCts.Token);
+            _ = ProcessChannel(PendingOutgoingMessages, HandleOutgoingMessage, messageCts.Token);
         }
 
         public Task Disconnect()
@@ -40,50 +43,44 @@ namespace NNostr.Client
             }
         }
 
+        public async IAsyncEnumerable<string> ListenForRawMessages()
+        {
+            var buffer = new ArraySegment<byte>(new byte[2048]);
+            while (websocket.State == WebSocketState.Open && !_Cts.IsCancellationRequested)
+            {
+                WebSocketReceiveResult result;
+                await using var ms = new MemoryStream();
+                do
+                {
+                    result = await websocket!.ReceiveAsync(buffer, _Cts.Token);
+                    ms.Write(buffer.Array, buffer.Offset, result.Count);
+                } while (!result.EndOfMessage);
+
+                ms.Seek(0, SeekOrigin.Begin);
+
+                yield return Encoding.UTF8.GetString(ms.ToArray());
+
+                if (result.MessageType == WebSocketMessageType.Close)
+                    break;
+            }
+
+            websocket.Abort();
+        }
+
+
         public async Task ListenForMessages()
         {
-            while (websocket!.State == WebSocketState.Open && !_Cts!.IsCancellationRequested)
+            await foreach (var message in ListenForRawMessages())
             {
-                var buffer = new ArraySegment<byte>(new byte[1024 * 4]);
-                try
-                {
-                    string? message = null;
-                    WebSocketReceiveResult? result = null;
-                    await using (var ms = new MemoryStream())
-                    {
-                        do
-                        {
-                            result = await websocket.ReceiveAsync(buffer, _Cts.Token)
-                                .ConfigureAwait(false);
-                            ms.Write(buffer.Array!, buffer.Offset, result.Count);
-                        } while (!result.EndOfMessage);
-
-                        if (result.MessageType == WebSocketMessageType.Close)
-                        {
-                            websocket.Abort();
-                            break;
-                        }
-
-                        ms.Seek(0, SeekOrigin.Begin);
-
-                        using (var reader = new StreamReader(ms, Encoding.UTF8))
-                        {
-                            message = await reader.ReadToEndAsync().ConfigureAwait(false);
-                        }
-                    }
-
-                    await PendingMessages.Writer.WriteAsync(message);
-                    MessageReceived.Invoke(this, message);
-                }
-                catch (WebSocketException e)
-                {
-                }
+                await PendingIncomingMessages.Writer.WriteAsync(message);
+                MessageReceived.Invoke(this, message);
             }
         }
 
-        private readonly Channel<string> PendingMessages = Channel.CreateUnbounded<string>();
+        private readonly Channel<string> PendingIncomingMessages = Channel.CreateUnbounded<string>();
+        private readonly Channel<string> PendingOutgoingMessages = Channel.CreateUnbounded<string>();
 
-        private Task HandleMessage(string message)
+        private Task<bool> HandleIncomingMessage(string message, CancellationToken token)
         {
             var json = JsonDocument.Parse(message).RootElement;
             switch (json[0].GetRawText().ToLowerInvariant())
@@ -93,8 +90,9 @@ namespace NNostr.Client
                     var evt = json[2].Deserialize<NostrEvent>();
                     if (evt?.Verify() is true)
                     {
-                        EventsReceived.Invoke(this, (subscriptionId, new []{evt}));
+                        EventsReceived.Invoke(this, (subscriptionId, new[] { evt }));
                     }
+
                     break;
                 case "notice":
                     var noticeMessage = json[1].GetRawText();
@@ -102,16 +100,38 @@ namespace NNostr.Client
                     break;
             }
 
-            return Task.CompletedTask;
+            return Task.FromResult(true);
         }
-        
-        private async Task ProcessSendMessages(CancellationToken cancellationToken)
+
+        private async Task<bool> HandleOutgoingMessage(string message, CancellationToken token)
         {
-            while (await PendingMessages.Reader.WaitToReadAsync(cancellationToken))
+            try
             {
-                if (PendingMessages.Reader.TryRead(out var evt))
+
+            return await WaitUntilConnected(token)
+                .ContinueWith(_ => websocket.SendMessageAsync(message, token), token)
+                .ContinueWith(_ => true, token);
+            
+            }
+            catch 
+            {
+                return false;
+            }
+        }
+
+        private async Task ProcessChannel<T>(Channel<T> channel, Func<T, CancellationToken,Task<bool>> processor,
+            CancellationToken cancellationToken)
+        {
+            while (await channel.Reader.WaitToReadAsync(cancellationToken))
+            {
+                if (channel.Reader.TryPeek(out var evt))
                 {
-                    await HandleMessage(evt);
+                    var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    linked.CancelAfter(5000);
+                    if (await processor(evt, linked.Token))
+                    {
+                        channel.Reader.TryRead(out _);
+                    }
                 }
             }
         }
@@ -119,19 +139,22 @@ namespace NNostr.Client
         public async Task PublishEvent(NostrEvent nostrEvent, CancellationToken token = default)
         {
             var payload = JsonSerializer.Serialize(new object[] { "EVENT", nostrEvent });
-            await websocket.SendMessageAsync(payload, token);
+            await PendingOutgoingMessages.Writer.WriteAsync(payload, token);
         }
 
         public async Task CloseSubscription(string subscriptionId, CancellationToken token = default)
         {
             var payload = JsonSerializer.Serialize(new[] { "CLOSE", subscriptionId });
-            await websocket.SendMessageAsync(payload, token);
+
+            await PendingOutgoingMessages.Writer.WriteAsync(payload, token);
         }
 
-        public async Task CreateSubscription(string subscriptionId, NostrSubscriptionFilter[] filters, CancellationToken token = default)
+        public async Task CreateSubscription(string subscriptionId, NostrSubscriptionFilter[] filters,
+            CancellationToken token = default)
         {
-            var payload = JsonSerializer.Serialize(new object[] { "REQ", subscriptionId}.Concat(filters));
-            await websocket.SendMessageAsync(payload, token);
+            var payload = JsonSerializer.Serialize(new object[] { "REQ", subscriptionId }.Concat(filters));
+
+            await PendingOutgoingMessages.Writer.WriteAsync(payload, token);
         }
 
         public void Dispose()
@@ -146,14 +169,19 @@ namespace NNostr.Client
             {
                 return;
             }
+
             websocket?.Dispose();
             websocket = new ClientWebSocket();
             var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            cts.CancelAfter(5000);
             await websocket.ConnectAsync(_relay, cts.Token);
-            while (websocket.State != WebSocketState.Open && !cts.IsCancellationRequested)
+            await WaitUntilConnected(cts.Token);
+        }
+
+        private async Task WaitUntilConnected(CancellationToken token)
+        {
+            while (websocket.State != WebSocketState.Open && !token.IsCancellationRequested)
             {
-                await Task.Delay(100, cts.Token);
+                await Task.Delay(100, token);
             }
         }
     }
