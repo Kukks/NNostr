@@ -74,7 +74,17 @@ namespace NNostr.Client
         {
             return key.ToBytes().ToHex();
         }
-        
+
+        public static string[] GetTaggedEvents(this NostrEvent e)
+        {
+            return e.GetTaggedData("e");
+        }
+
+        public static string[] GetTaggedData(this NostrEvent e, string identifier)
+        {
+            
+            return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
+        }
         
         public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, bool includeDeleted = false,
             params NostrSubscriptionFilter[] filters)

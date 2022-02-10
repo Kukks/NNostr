@@ -83,19 +83,18 @@ namespace NNostr.Client
         private Task<bool> HandleIncomingMessage(string message, CancellationToken token)
         {
             var json = JsonDocument.Parse(message).RootElement;
-            switch (json[0].GetRawText().ToLowerInvariant())
+            switch (json[0].GetString().ToLowerInvariant())
             {
                 case "event":
-                    var subscriptionId = json[1].GetRawText();
+                    var subscriptionId = json[1].GetString();
                     var evt = json[2].Deserialize<NostrEvent>();
                     if (evt?.Verify() is true)
                     {
                         EventsReceived.Invoke(this, (subscriptionId, new[] { evt }));
                     }
-
                     break;
                 case "notice":
-                    var noticeMessage = json[1].GetRawText();
+                    var noticeMessage = json[1].GetString();
                     NoticeReceived.Invoke(this, noticeMessage);
                     break;
             }
@@ -163,12 +162,14 @@ namespace NNostr.Client
             Disconnect();
         }
 
-        public async Task ConnectAndWaitUntilConnected(CancellationToken token)
+        public async Task ConnectAndWaitUntilConnected(CancellationToken token = default)
         {
+            
             if (websocket?.State == WebSocketState.Open)
             {
                 return;
             }
+            _Cts ??= CancellationTokenSource.CreateLinkedTokenSource(token);
 
             websocket?.Dispose();
             websocket = new ClientWebSocket();
