@@ -20,7 +20,7 @@
     <ItemGroup>
         <PackageReference Include="LinqKit.Core" Version="1.2.0" />
         <PackageReference Include="NBitcoin.Secp256k1" Version="2.0.2" />
-        <PackageReference Include="System.Text.Json" Version="6.0.1" />
+        <PackageReference Include="System.Text.Json" Version="6.0.2" />
     </ItemGroup>
 
 </Project>
