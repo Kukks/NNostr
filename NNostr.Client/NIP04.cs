@@ -1,11 +1,12 @@
-using System.Security.Cryptography;
 using NBitcoin.Secp256k1;
 
 namespace NNostr.Client;
 
 public static class NIP04
 {
-    public static string DecryptNip04Event(this NostrEvent nostrEvent, ECPrivKey key)
+    public static IAesEncryptor Encryptor = new AesEncryptor();
+    
+    public static Task<string> DecryptNip04Event(this NostrEvent nostrEvent, ECPrivKey key)
     {
         if (nostrEvent.Kind != 4)
         {
@@ -41,10 +42,10 @@ public static class NIP04
         var encrypted = nostrEvent.Content.Split("?iv=");
         var encryptedText = encrypted[0];
         var iv = encrypted[1];
-        return Decrypt(encryptedText, iv, sharedKey);
+        return Encryptor.Decrypt(encryptedText, iv, sharedKey);
     }
     
-    public static void EncryptNip04Event(this NostrEvent nostrEvent, ECPrivKey key)
+    public static async Task EncryptNip04Event(this NostrEvent nostrEvent, ECPrivKey key)
     {
         if (nostrEvent.Kind != 4)
         {
@@ -68,7 +69,7 @@ public static class NIP04
         var receiverPubKey = Context.Instance.CreateXOnlyPubKey(receiverPubKeyStr.DecodHexData());
         var sharedKey = GetSharedPubkey(receiverPubKey, key).ToBytes().Skip(1).ToArray();
 
-        var result = Encrypt(nostrEvent.Content, sharedKey);
+        var result = await Encryptor.Encrypt(nostrEvent.Content, sharedKey);
         nostrEvent.Content = $"{result.cipherText}?iv={result.iv}";
 
     }
@@ -80,56 +81,12 @@ public static class NIP04
         return mPubKey?.GetSharedPubkey(key);
     }
     
+   
     
-    
-    
+}
 
-    private static (string cipherText, string iv) Encrypt(string plainText, byte[] key)
-    {
-        byte[] cipherData;
-        Aes aes = Aes.Create();
-        aes.Key = key;
-        aes.GenerateIV();
-        aes.Mode = CipherMode.CBC;
-        ICryptoTransform cipher = aes.CreateEncryptor(aes.Key, aes.IV);
-
-        using (MemoryStream ms = new MemoryStream())
-        {
-            using (CryptoStream cs = new CryptoStream(ms, cipher, CryptoStreamMode.Write))
-            {
-                using (StreamWriter sw = new StreamWriter(cs))
-                {
-                    sw.Write(plainText);
-                }
-            }
-
-            cipherData = ms.ToArray();
-        }
-
-        return (Convert.ToBase64String(cipherData), Convert.ToBase64String(aes.IV));
-    }
-
-    private static string Decrypt(string cipherText, string iv, byte[] key)
-    {
-        string plainText;
-        Aes aes = Aes.Create();
-        aes.Key = key;
-        aes.IV = Convert.FromBase64String(iv);
-        aes.Mode = CipherMode.CBC;
-        ICryptoTransform decipher = aes.CreateDecryptor(aes.Key, aes.IV);
-
-        using (MemoryStream ms = new MemoryStream(Convert.FromBase64String(cipherText)))
-        {
-            using (CryptoStream cs = new CryptoStream(ms, decipher, CryptoStreamMode.Read))
-            {
-                using (StreamReader sr = new StreamReader(cs))
-                {
-                    plainText = sr.ReadToEnd();
-                }
-            }
-
-            return plainText;
-        }
-    }
-    
+public interface IAesEncryptor
+{
+    Task<(string cipherText, string iv)> Encrypt(string plainText, byte[] key);
+    Task<string> Decrypt(string cipherText, string iv, byte[] key);
 }

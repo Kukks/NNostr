@@ -21,11 +21,11 @@ namespace NNostr.Client
             return nostrEvent.ToJson(true).ComputeSignature(priv);
         }
 
-        public static void ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true)
+        public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true)
         {
             if (handlenip4 && nostrEvent.Kind == 4)
             {
-                nostrEvent.EncryptNip04Event(priv);
+                await nostrEvent.EncryptNip04Event(priv);
             }
             nostrEvent.Id = nostrEvent.ComputeId();
             nostrEvent.Signature = nostrEvent.ComputeSignature(priv);
