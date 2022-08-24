@@ -36,6 +36,10 @@ public class Nip11Middleware : IMiddleware
             {
                 nips.Add(11);
             }
+            if (_options.Value.EnableNip16)
+            {
+                nips.Add(16);
+            }
 
             var response = new Nip11Response()
             {

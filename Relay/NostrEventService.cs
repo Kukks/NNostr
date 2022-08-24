@@ -110,33 +110,10 @@ namespace Relay
 
                 evt = evt.Where(e => !notvalid.Contains(e)).ToArray();
             }
-            
-            _logger.LogInformation($"Saving {evt.Length} new events");
-            foreach (var nostrSubscriptionFilter in ActiveFilters)
-            {
-                var matched = evt.Filter(false, nostrSubscriptionFilter.Value).ToArray();
-                if (!matched.Any()) continue;
 
-                var matchedList = matched.ToArray();
-                _logger.LogInformation($"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
-                if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
-                {
-                    
-                    var updatedResult = currentFilterValues.Concat(matchedList).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray();
-                    CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
-                }
-                else
-                {
-                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key, matchedList.FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
-                }
+            _logger.LogInformation($"Processing/Saving {evt.Length} new events");
 
-                EventsMatched?.Invoke(this, new NostrEventsMatched()
-                {
-                    Events = matchedList,
-                    FilterId = nostrSubscriptionFilter.Key
-                });
-            }
-
+            var removedEvents = new List<string>();
             if (_options.Value.EnableNip09)
             {
                 var deletionEvents = evt.Where(e => e.Kind == 5).ToArray();
@@ -153,13 +130,65 @@ namespace Relay
                                 evt2.PublicKey.Equals(eventsToDeleteByPubKeyItem.Key,
                                     StringComparison.InvariantCultureIgnoreCase) &&
                                 !evt2.Deleted && eventsToDeleteByPubKeyItem.Value.Contains(evt2.Id))
-                            .ForEachAsync(evt2 => evt2.Deleted = true);
+                            .ForEachAsync(evt2 =>
+                            {
+                                // clients still receive a copy of the original note so we shouldnt remove from filter results
+                                // removedEvents.Add(evt2);  
+                                evt2.Deleted = true;
+                            });
                     }
                 }
             }
 
-            await context.EventTags.AddRangeAsync(evt.SelectMany(e => e.Tags));
-            await context.Events.AddRangeAsync(evt);
+            var evtsToSave = evt;
+            if (_options.Value.EnableNip16)
+            {
+                var replaceableEvents = evt.Where(e => e.Kind is >= 10000 and < 20000).ToArray();
+                var replacedEvents = new List<NostrEvent>();
+                foreach (var eventsToReplace in replaceableEvents)
+                {
+                    replacedEvents.AddRange(context.Events.Where(evt2 =>
+                        evt2.PublicKey.Equals(eventsToReplace.Id,
+                            StringComparison.InvariantCultureIgnoreCase) && eventsToReplace.Kind == evt2.Kind &&
+                        evt2.CreatedAt < eventsToReplace.CreatedAt));
+                }
+
+                context.Events.RemoveRange(replacedEvents);
+                removedEvents.AddRange(replacedEvents.Select(e=> e.Id));
+                //ephemeral events
+                evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
+                
+                
+            }
+            
+            
+            foreach (var nostrSubscriptionFilter in ActiveFilters)
+            {
+                var matched = evt.Filter(false, nostrSubscriptionFilter.Value).ToArray();
+                if (!matched.Any()) continue;
+
+                var matchedList = matched.ToArray();
+                _logger.LogInformation($"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
+                if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
+                {
+                    
+                    var updatedResult = currentFilterValues.Concat(matchedList).Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray();
+                    CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
+                }
+                else
+                {
+                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key, matchedList.Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
+                }
+
+                EventsMatched?.Invoke(this, new NostrEventsMatched()
+                {
+                    Events = matchedList,
+                    FilterId = nostrSubscriptionFilter.Key
+                });
+            }
+
+            await context.EventTags.AddRangeAsync(evtsToSave.SelectMany(e => e.Tags));
+            await context.Events.AddRangeAsync(evtsToSave);
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
             return evt.Select(e => e.Id).ToArray();
