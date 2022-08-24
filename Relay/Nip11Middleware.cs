@@ -40,6 +40,10 @@ public class Nip11Middleware : IMiddleware
             {
                 nips.Add(16);
             }
+            if (_options.Value.Nip22ForwardLimit is not null || _options.Value.Nip22BackwardLimit is not null  )
+            {
+                nips.Add(22);
+            }
 
             var response = new Nip11Response()
             {

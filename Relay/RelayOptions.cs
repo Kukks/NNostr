@@ -43,4 +43,6 @@ public class RelayOptions
     public string? BTCPayServerApiKey { get; set; }
     public string? BTCPayServerStoreId { get; set; }
     public bool EnableNip15 { get; set; } = true;
+    public TimeSpan? Nip22BackwardLimit { get; set; } = TimeSpan.FromDays(1);
+    public TimeSpan? Nip22ForwardLimit { get; set; } = TimeSpan.FromMinutes(15);
 }

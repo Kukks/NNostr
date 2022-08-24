@@ -27,7 +27,8 @@ namespace Relay
         private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
             new();
 
-        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger, IOptions<RelayOptions> options)
+        public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger,
+            IOptions<RelayOptions> options)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
@@ -43,7 +44,10 @@ namespace Relay
                 isToAdmin = true;
                 return 0;
             }
-            if(evt.Kind == 4 && evt.Tags.Any(tag => tag.TagIdentifier == "p" && tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
+
+            if (evt.Kind == 4 && evt.Tags.Any(tag =>
+                    tag.TagIdentifier == "p" &&
+                    tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
             {
                 isToAdmin = true;
                 return 0;
@@ -53,10 +57,10 @@ namespace Relay
             {
                 return _options.Value.EventCost;
             }
-            
+
             return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson(false));
         }
-        
+
         public async Task<string[]> AddEvent(NostrEvent[] evt)
         {
             var evtIds = evt.Select(e => e.Id).ToArray();
@@ -65,13 +69,23 @@ namespace Relay
                 await context.Events.Where(e => evtIds.Contains(e.Id)).Select(e => e.Id).ToArrayAsync();
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
 
+            evt = evt.Where(e =>
+                (_options.Value.Nip22BackwardLimit is null ||
+                 (DateTimeOffset.UtcNow - e.CreatedAt) <= _options.Value.Nip22BackwardLimit) &&
+                (_options.Value.Nip22ForwardLimit is null ||
+                 (e.CreatedAt - DateTimeOffset.UtcNow) <= _options.Value.Nip22ForwardLimit)
+            ).ToArray();
+
             if (_options.Value.EventCost > 0 || _options.Value.PubKeyCost > 0)
             {
                 var eventsGroupedByAuthor = evt.GroupBy(e => e.PublicKey);
-                var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, NostrEvent>[] ?? eventsGroupedByAuthor.ToArray();
+                var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, NostrEvent>[] ??
+                                                 eventsGroupedByAuthor.ToArray();
                 var authors = eventsGroupedByAuthorItems.Select(events => events.Key).ToHashSet();
-                var balanceLookup = (await context.Balances.Where(balance => authors.Contains(balance.PublicKey)).ToListAsync()).ToDictionary(balance => balance.PublicKey);
-                
+                var balanceLookup =
+                    (await context.Balances.Where(balance => authors.Contains(balance.PublicKey)).ToListAsync())
+                    .ToDictionary(balance => balance.PublicKey);
+
                 var notvalid = new List<NostrEvent>();
                 foreach (var eventsGroupedByAuthorItem in eventsGroupedByAuthorItems)
                 {
@@ -102,10 +116,8 @@ namespace Relay
                                 Value = cost * -1,
                                 EventId = eventsGroupedByAuthorItemEvt.Id
                             });
-
                         }
                     }
-
                 }
 
                 evt = evt.Where(e => !notvalid.Contains(e)).ToArray();
@@ -154,30 +166,32 @@ namespace Relay
                 }
 
                 context.Events.RemoveRange(replacedEvents);
-                removedEvents.AddRange(replacedEvents.Select(e=> e.Id));
+                removedEvents.AddRange(replacedEvents.Select(e => e.Id));
                 //ephemeral events
                 evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
-                
-                
             }
-            
-            
+
+
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
                 var matched = evt.Filter(false, nostrSubscriptionFilter.Value).ToArray();
                 if (!matched.Any()) continue;
 
                 var matchedList = matched.ToArray();
-                _logger.LogInformation($"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
+                _logger.LogInformation(
+                    $"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
                 if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
                 {
-                    
-                    var updatedResult = currentFilterValues.Concat(matchedList).Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray();
+                    var updatedResult = currentFilterValues.Concat(matchedList)
+                        .Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit)
+                        .ToArray();
                     CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
                 }
                 else
                 {
-                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key, matchedList.Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
+                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key,
+                        matchedList.Where(e => !removedEvents.Contains(e.Id))
+                            .FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
                 }
 
                 EventsMatched?.Invoke(this, new NostrEventsMatched()
@@ -207,8 +221,9 @@ namespace Relay
             foreach (var nostrSubscriptionFilter in filter)
             {
                 var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().ToHex();
-                result.AddRange(await CachedFilterResults.GetOrAddAsync(id, s =>  GetFromDB(nostrSubscriptionFilter)));
+                result.AddRange(await CachedFilterResults.GetOrAddAsync(id, s => GetFromDB(nostrSubscriptionFilter)));
             }
+
             return result.Distinct().ToArray();
         }
 
