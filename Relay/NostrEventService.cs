@@ -121,12 +121,13 @@ namespace Relay
                 _logger.LogInformation($"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
                 if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
                 {
-                    var updatedResult = currentFilterValues.Concat(matchedList).ToArray();
+                    
+                    var updatedResult = currentFilterValues.Concat(matchedList).FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray();
                     CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
                 }
                 else
                 {
-                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key, matchedList);
+                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key, matchedList.FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
                 }
 
                 EventsMatched?.Invoke(this, new NostrEventsMatched()

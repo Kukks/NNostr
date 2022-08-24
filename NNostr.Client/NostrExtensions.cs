@@ -86,13 +86,10 @@ namespace NNostr.Client
             return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
         }
         
-        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, bool includeDeleted = false,
-            params NostrSubscriptionFilter[] filters)
+        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, bool includeDeleted,
+            NostrSubscriptionFilter filter)
         {
-            IQueryable<NostrEvent> result = null;
-            foreach (var filter in filters)
-            {
-                var filterQuery = events;
+            var filterQuery = events;
                 if (!includeDeleted)
                 {
                     filterQuery = filterQuery.Where(e => !e.Deleted);
@@ -143,19 +140,22 @@ namespace NNostr.Client
                     (current, tagFilter) => current.Where(e =>
                         e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Equals(tag.Data[1]))));
 
-                result = result is null ? filterQuery : result.Union(filterQuery);
-            }
-
-            return result;
+                if (filter.Limit is not null)
+                {
+                    filterQuery = filterQuery.OrderBy(e => e.CreatedAt).TakeLast(filter.Limit.Value);
+                }
+                return filterQuery;
         }
 
-        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, bool includeDeleted = false,
-            params NostrSubscriptionFilter[] filters)
+        public static IEnumerable<NostrEvent> FilterByLimit(this IEnumerable<NostrEvent> events, int? limitFilter)
         {
-            IEnumerable<NostrEvent> result = null;
-            foreach (var filter in filters)
-            {
-                var filterQuery = events;
+            return limitFilter is not null ? events.OrderBy(e => e.CreatedAt).TakeLast(limitFilter.Value) : events;
+        }
+
+        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, bool includeDeleted,
+            NostrSubscriptionFilter filter)
+        {
+            var filterQuery = events;
                 if (!includeDeleted)
                 {
                     filterQuery = filterQuery.Where(e => !e.Deleted);
@@ -205,10 +205,8 @@ namespace NNostr.Client
                         e.Tags.Any(tag =>
                             tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0]))));
 
-                result = result is null ? filterQuery : result.Union(filterQuery);
-            }
-
-            return result;
+               
+                return filterQuery;
         }
     }
 }

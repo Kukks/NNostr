@@ -13,6 +13,7 @@ namespace NNostr.Client
         [JsonPropertyName("#p")] public string[]? PublicKey { get; set; }
         [JsonPropertyName("since")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Since { get; set; }
         [JsonPropertyName("until")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Until { get; set; }
+        [JsonPropertyName("limit")] public int? Limit { get; set; }
         
         [JsonExtensionData]
         public IDictionary<string, JsonElement> ExtensionData { get; set; }
