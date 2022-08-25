@@ -1,10 +1,7 @@
 using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Channels;
-using Relay;
 
 namespace NNostr.Client
 {
