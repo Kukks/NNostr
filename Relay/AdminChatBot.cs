@@ -193,7 +193,7 @@ public class AdminChatBot : IHostedService
                                 }
                             }
                         };
-                        eventReply.ComputeIdAndSign(_options.Value.AdminPrivateKey);
+                        await eventReply.ComputeIdAndSign(_options.Value.AdminPrivateKey);
                         _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
                         await _nostrEventService.AddEvent(new []{eventReply});
                         break;
