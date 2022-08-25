@@ -20,7 +20,7 @@ jobs:
 
       - name: Publish NuGet
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
-        uses: Rebel028/publish-nuget@v2.6.3
+        uses: Rebel028/publish-nuget@v2.7.0
         with:
           PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
           NUGET_KEY: ${{secrets.NUGET_KEY}}
@@ -31,7 +31,7 @@ jobs:
           TAG_FORMAT: NNostr.Client/v*
       - name: Publish Github Package Registry
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
-        uses: Rebel028/publish-nuget@v2.6.3
+        uses: Rebel028/publish-nuget@v2.7.0
         with:
           PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
           NUGET_SOURCE: "https://nuget.pkg.github.com/Kukks"
