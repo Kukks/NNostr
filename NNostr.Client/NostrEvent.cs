@@ -1,5 +1,5 @@
 using System.Text.Json.Serialization;
-using Relay.Data;
+using NNostr.Client.JsonConverters;
 
 namespace NNostr.Client
 {
@@ -16,6 +16,7 @@ namespace NNostr.Client
         [JsonPropertyName("kind")]
         public int Kind { get; set; }
         [JsonPropertyName("content")]
+        [JsonConverter(typeof(StringEscaperJsonConverter))]
         public string Content { get; set; }
         
         [JsonPropertyName("tags")]

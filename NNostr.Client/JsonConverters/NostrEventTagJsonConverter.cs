@@ -1,8 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using NNostr.Client;
 
-namespace Relay.JsonConverters
+namespace NNostr.Client.JsonConverters
 {
     public class NostrEventTagJsonConverter : JsonConverter<NostrEventTag>
     {
@@ -21,11 +20,11 @@ namespace Relay.JsonConverters
             {
                 if (i == 0)
                 {
-                    result.TagIdentifier = reader.GetString();
+                    result.TagIdentifier = StringEscaperJsonConverter.JavaScriptStringEncode(reader.GetString(), false);
                 }
                 else
                 {
-                    result.Data.Add(reader.GetString());
+                    result.Data.Add(StringEscaperJsonConverter.JavaScriptStringEncode(reader.GetString(), false));
                 }
 
                 reader.Read();

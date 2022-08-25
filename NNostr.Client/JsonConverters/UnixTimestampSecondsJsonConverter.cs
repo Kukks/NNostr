@@ -1,17 +1,18 @@
-using System;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Relay.Data
+namespace NNostr.Client.JsonConverters
 {
-    public class UnixTimestampSecondsJsonConverter:JsonConverter<DateTimeOffset?>
+    public class UnixTimestampSecondsJsonConverter : JsonConverter<DateTimeOffset?>
     {
-        public override DateTimeOffset? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+        public override DateTimeOffset? Read(ref Utf8JsonReader reader, Type typeToConvert,
+            JsonSerializerOptions options)
         {
             if (reader.TokenType == JsonTokenType.Null)
             {
                 return null;
             }
+
             if (reader.TokenType != JsonTokenType.Number)
             {
                 throw new JsonException("datetime was not in number format");
