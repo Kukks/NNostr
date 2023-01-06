@@ -6,15 +6,16 @@ namespace NNostr.Client
 {
     public class NostrSubscriptionFilter
     {
-        [JsonPropertyName("ids")] public string[]? Ids { get; set; }
-        [JsonPropertyName("authors")] public string[]? Authors { get; set; }
-        [JsonPropertyName("kinds")] public int[]? Kinds { get; set; }
-        [JsonPropertyName("#e")] public string[]? EventId { get; set; }
-        [JsonPropertyName("#p")] public string[]? PublicKey { get; set; }
-        [JsonPropertyName("since")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Since { get; set; }
-        [JsonPropertyName("until")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Until { get; set; }
-        [JsonPropertyName("limit")] public int? Limit { get; set; }
-        
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("ids")] public string[]? Ids { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("authors")] public string[]? Authors { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("kinds")] public int[]? Kinds { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("#e")] public string[]? EventId { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("#p")] public string[]? PublicKey { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("since")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Since { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("until")][JsonConverter(typeof(UnixTimestampSecondsJsonConverter))] public DateTimeOffset? Until { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("limit")] public int? Limit { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         [JsonExtensionData]
         public IDictionary<string, JsonElement> ExtensionData { get; set; }
 
