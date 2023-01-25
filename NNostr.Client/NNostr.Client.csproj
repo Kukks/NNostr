@@ -18,6 +18,10 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="DotNet.ReproducibleBuilds" Version="1.1.1">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="LinqKit.Core" Version="1.2.2" />
         <PackageReference Include="NBitcoin.Secp256k1" Version="3.0.1" />
         <PackageReference Include="System.Text.Json" Version="6.0.5" />
