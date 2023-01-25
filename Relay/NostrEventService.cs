@@ -170,6 +170,26 @@ namespace Relay
                 //ephemeral events
                 evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
             }
+            if (_options.Value.EnableNip33)
+            {
+                var replaceableEvents = evt.Where(e => e.Kind is >= 30000 and < 40000).ToArray();
+                var replacedEvents = new List<RelayNostrEvent>();
+                foreach (var eventsToReplace in replaceableEvents)
+                {
+                    var dValue = eventsToReplace.GetTaggedData("d").FirstOrDefault() ?? string.Empty;
+                    replacedEvents.AddRange(context.Events.Where(evt2 =>
+                        evt2.PublicKey.Equals(eventsToReplace.Id,
+                            StringComparison.InvariantCultureIgnoreCase) && 
+                        eventsToReplace.Kind == evt2.Kind &&
+                        dValue== (evt2.GetTaggedData("d").FirstOrDefault()??"") &&
+                        evt2.CreatedAt < eventsToReplace.CreatedAt));
+                }
+
+                context.Events.RemoveRange(replacedEvents);
+                removedEvents.AddRange(replacedEvents.Select(e => e.Id));
+                //ephemeral events
+                evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
+            }
 
 
             foreach (var nostrSubscriptionFilter in ActiveFilters)

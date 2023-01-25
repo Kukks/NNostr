@@ -40,6 +40,10 @@ public class Nip11Middleware : IMiddleware
             {
                 nips.Add(16);
             }
+            if (_options.Value.EnableNip33)
+            {
+                nips.Add(33);
+            }
             if (_options.Value.Nip22ForwardLimit is not null || _options.Value.Nip22BackwardLimit is not null  )
             {
                 nips.Add(22);
