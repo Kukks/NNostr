@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>10</LangVersion>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <PackageVersion>0.0.17</PackageVersion>
+        <PackageVersion>0.0.18</PackageVersion>
         <Title>Nostr Client</Title>
         <Description>A client for Nostr</Description>
         <Copyright>MIT</Copyright>
