@@ -44,10 +44,30 @@ namespace Relay
                         _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
                         var json = JsonDocument.Parse(evt.Item2).RootElement;
                         var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
-                        if (e.Verify())
+                        if (_options.Value.Nip13Difficulty > 0)
+                        {
+                            var count = 0;
+                            foreach (var c in e.Id)
+                            {
+                                if (c == '0')
+                                {
+                                    count++;
+                                }
+                                else
+                                {
+                                    break;
+                                }
+                            }
+
+                            if (count < _options.Value.Nip13Difficulty)
+                            {
+                                
+                                WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.Value.Nip13Difficulty}");
+                            }
+                        }else if (e.Verify())
                         {
                             var added = await _nostrEventService.AddEvent(new[] {e});
-                            if (_options.Value.EnableNip33)
+                            if (_options.Value.EnableNip20)
                             {
                                 foreach (var tuple in added)
                                 {
@@ -67,7 +87,7 @@ namespace Relay
                                 }
                             }
                         }
-                        else if (_options.Value.EnableNip33)
+                        else if (_options.Value.EnableNip20)
                         {
                             WriteOkMessage(evt.Item1, e.Id, false, "invalid: event could not be verified");
                         }

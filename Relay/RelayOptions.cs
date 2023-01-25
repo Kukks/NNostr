@@ -24,6 +24,7 @@ public class RelayOptions
     public bool EnableNip16 { get; set; } = true;
     public bool EnableNip33 { get; set; } = true;
     public bool EnableNip20 { get; set; } = true;
+    public int Nip13Difficulty { get; set; } = 0;
 
     public ECPrivKey? AdminPrivateKey
     {
