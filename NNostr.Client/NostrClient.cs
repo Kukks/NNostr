@@ -28,6 +28,7 @@ namespace NNostr.Client
         public EventHandler<string>? MessageReceived;
         public EventHandler<string>? NoticeReceived;
         public EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
+        public EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
         public EventHandler<string>? EoseReceived;
 
         public async Task Connect(CancellationToken token = default)
@@ -101,6 +102,12 @@ namespace NNostr.Client
                 case "eose":
                     subscriptionId = json[1].GetString();
                     EoseReceived?.Invoke(this, subscriptionId);
+                    break;
+                case "ok":
+                    var eventId = json[1].GetString();
+                    var success = json[2].GetBoolean();
+                    var msg = json.GetArrayLength() == 3 ? json[2].GetString() : String.Empty;
+                    OkReceived?.Invoke(this, (eventId, success, msg));
                     break;
             }
 
