@@ -54,7 +54,7 @@ namespace Relay.Data
         public DbSet<BalanceTopup> BalanceTopups { get; set; }
         public DbSet<BalanceTransaction> BalanceTransactions { get; set; }
         public DbSet<NostrEventTag> EventTags { get; set; }
-        public DbSet<NostrEvent> Events { get; set; }
+        public DbSet<RelayNostrEvent> Events { get; set; }
         public const string DatabaseConnectionStringName = "RelayDatabase";
 
         public RelayDbContext(DbContextOptions<RelayDbContext> options):base(options)

@@ -24,8 +24,6 @@ namespace NNostr.Client
         
         [JsonPropertyName("sig")]
         public string Signature { get; set; }
-        
-        [JsonIgnore] public bool Deleted { get; set; }
 
         public bool Equals(NostrEvent? x, NostrEvent? y)
         {

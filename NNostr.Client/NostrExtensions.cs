@@ -93,14 +93,9 @@ namespace NNostr.Client
             return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
         }
         
-        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, bool includeDeleted,
-            NostrSubscriptionFilter filter)
+        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, NostrSubscriptionFilter filter)
         {
             var filterQuery = events;
-                if (!includeDeleted)
-                {
-                    filterQuery = filterQuery.Where(e => !e.Deleted);
-                }
 
                 if (filter.Ids?.Any() is true)
                 {
@@ -159,14 +154,10 @@ namespace NNostr.Client
             return limitFilter is not null ? events.OrderBy(e => e.CreatedAt).TakeLast(limitFilter.Value) : events;
         }
 
-        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, bool includeDeleted,
-            NostrSubscriptionFilter filter)
+        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, NostrSubscriptionFilter filter)
         {
             var filterQuery = events;
-                if (!includeDeleted)
-                {
-                    filterQuery = filterQuery.Where(e => !e.Deleted);
-                }
+               
 
                 if (filter.Ids?.Any() is true)
                 {

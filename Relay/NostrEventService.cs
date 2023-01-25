@@ -156,7 +156,7 @@ namespace Relay
             if (_options.Value.EnableNip16)
             {
                 var replaceableEvents = evt.Where(e => e.Kind is >= 10000 and < 20000).ToArray();
-                var replacedEvents = new List<NostrEvent>();
+                var replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
                     replacedEvents.AddRange(context.Events.Where(evt2 =>
@@ -174,7 +174,7 @@ namespace Relay
 
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
-                var matched = evt.Filter(false, nostrSubscriptionFilter.Value).ToArray();
+                var matched = evt.Filter( nostrSubscriptionFilter.Value).ToArray();
                 if (!matched.Any()) continue;
 
                 var matchedList = matched.ToArray();
@@ -202,7 +202,9 @@ namespace Relay
             }
 
             await context.EventTags.AddRangeAsync(evtsToSave.SelectMany(e => e.Tags));
-            await context.Events.AddRangeAsync(evtsToSave);
+            await context.Events.AddRangeAsync(
+                evtsToSave.Select(@event => 
+                    JsonSerializer.Deserialize<RelayNostrEvent>( JsonSerializer.Serialize(@event)))!);
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
             return evt.Select(e => e.Id).ToArray();
@@ -240,7 +242,7 @@ namespace Relay
         private async Task<NostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
         {
             await using var context = await _dbContextFactory.CreateDbContextAsync();
-            return await context.Events.Include(e => e.Tags).Filter(false, filter).ToArrayAsync();
+            return await context.Events.Include(e => e.Tags).Where(e => !e.Deleted).Filter(filter).ToArrayAsync();
         }
 
         public void RemoveFilter(string removedFilter)

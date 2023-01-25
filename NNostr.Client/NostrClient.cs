@@ -99,7 +99,7 @@ namespace NNostr.Client
                     NoticeReceived?.Invoke(this, noticeMessage);
                     break;
                 case "eose":
-                    subscriptionId = json[1].Value<string>();
+                    subscriptionId = json[1].GetString();
                     EoseReceived?.Invoke(this, subscriptionId);
                     break;
             }
