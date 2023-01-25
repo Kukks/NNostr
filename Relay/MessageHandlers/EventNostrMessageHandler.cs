@@ -46,18 +46,7 @@ namespace Relay
                         var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
                         if (_options.Value.Nip13Difficulty > 0)
                         {
-                            var count = 0;
-                            foreach (var c in e.Id)
-                            {
-                                if (c == '0')
-                                {
-                                    count++;
-                                }
-                                else
-                                {
-                                    break;
-                                }
-                            }
+                            var count = e.CountPowDifficulty(_options.Value.Nip13Difficulty);
 
                             if (count < _options.Value.Nip13Difficulty)
                             {

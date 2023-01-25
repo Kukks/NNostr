@@ -20,7 +20,7 @@ namespace NNostr.Client
 
         public static string ComputeId(this NostrEvent nostrEvent)
         {
-            return nostrEvent.ToJson(true).ComputeSha256Hash().ToHex();
+            return nostrEvent.ToJson(true).ComputeEventId();
         }
 
         public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv)
@@ -28,7 +28,7 @@ namespace NNostr.Client
             return nostrEvent.ToJson(true).ComputeSignature(priv);
         }
 
-        public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true)
+        public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
         {
             if (handlenip4 && nostrEvent.Kind == 4)
             {
@@ -36,6 +36,53 @@ namespace NNostr.Client
             }
             nostrEvent.Id = nostrEvent.ComputeId();
             nostrEvent.Signature = nostrEvent.ComputeSignature(priv);
+
+            ulong counter = 0;
+            while (nostrEvent.CountPowDifficulty(powDifficulty) < powDifficulty)
+            {
+                nostrEvent.SetTag("nonce", counter.ToString(), powDifficulty.ToString());
+            }
+            
+        }
+
+        public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data)
+        {
+           nostrEvent.Tags.RemoveAll(tag => tag.TagIdentifier == identifier);
+           nostrEvent.Tags.Add(new NostrEventTag()
+           {
+               TagIdentifier = identifier, Data = data.ToList(), EventId = nostrEvent.Id, Event = nostrEvent
+           });
+        }
+
+        public static int CountPowDifficulty(this NostrEvent @event, int? powDifficulty = null)
+        {
+
+            var pow = 0;
+            foreach (var c in @event.Id)
+            {
+                if (c == '0')
+                {
+                    pow++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            if (powDifficulty is null)
+            {
+                return pow;
+            }
+
+            var diffAttempt = @event.GetTaggedData("nonce").ElementAtOrDefault(1);
+            if (!string.IsNullOrEmpty(diffAttempt) && int.TryParse(diffAttempt, out var i))
+            {
+                return i < powDifficulty ? i : pow;
+            }
+
+            return 0;
+
         }
 
         public static bool Verify(this NostrEvent nostrEvent)
