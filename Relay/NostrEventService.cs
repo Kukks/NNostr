@@ -61,20 +61,23 @@ namespace Relay
             return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson(false));
         }
 
-        public async Task<string[]> AddEvent(NostrEvent[] evt)
+        public async Task<List<(string eventId, bool success, string reason)>> AddEvent(NostrEvent[] evt)
         {
+            var eventResults = new List<(string eventId, bool success, string reason)>();
             var evtIds = evt.Select(e => e.Id).ToArray();
             await using var context = await _dbContextFactory.CreateDbContextAsync();
             var alreadyPresentEventIds =
                 await context.Events.Where(e => evtIds.Contains(e.Id)).Select(e => e.Id).ToArrayAsync();
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
-
-            evt = evt.Where(e =>
-                (_options.Value.Nip22BackwardLimit is null ||
-                 (DateTimeOffset.UtcNow - e.CreatedAt) <= _options.Value.Nip22BackwardLimit) &&
-                (_options.Value.Nip22ForwardLimit is null ||
-                 (e.CreatedAt - DateTimeOffset.UtcNow) <= _options.Value.Nip22ForwardLimit)
-            ).ToArray();
+            eventResults.AddRange(alreadyPresentEventIds.Select(s => (s, true, "duplicate: Event has been processed before")));
+            var invalidnip22 = evt.Where(e =>
+                !((_options.Value.Nip22BackwardLimit is null ||
+                  (DateTimeOffset.UtcNow - e.CreatedAt) <= _options.Value.Nip22BackwardLimit) &&
+                 (_options.Value.Nip22ForwardLimit is null ||
+                  (e.CreatedAt - DateTimeOffset.UtcNow) <= _options.Value.Nip22ForwardLimit)));
+            
+            eventResults.AddRange(invalidnip22.Select(s => (s.Id, false, "invalid: event creation date is too far off from the current time. Is your system clock in sync?")));
+            evt = evt.Except(invalidnip22).ToArray();
 
             if (_options.Value.EventCost > 0 || _options.Value.PubKeyCost > 0)
             {
@@ -119,6 +122,7 @@ namespace Relay
                         }
                     }
                 }
+                eventResults.AddRange(notvalid.Select(s => (s.Id, false, "invalid: this relay has a cost associated with this event and you did not have sufficient balance")));
 
                 evt = evt.Where(e => !notvalid.Contains(e)).ToArray();
             }
@@ -187,8 +191,6 @@ namespace Relay
 
                 context.Events.RemoveRange(replacedEvents);
                 removedEvents.AddRange(replacedEvents.Select(e => e.Id));
-                //ephemeral events
-                evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
             }
 
 
@@ -220,14 +222,14 @@ namespace Relay
                     FilterId = nostrSubscriptionFilter.Key
                 });
             }
-
+            eventResults.AddRange(evtsToSave.Select(@event => (@event.Id, true, "")));
             await context.EventTags.AddRangeAsync(evtsToSave.SelectMany(e => e.Tags));
             await context.Events.AddRangeAsync(
                 evtsToSave.Select(@event => 
                     JsonSerializer.Deserialize<RelayNostrEvent>( JsonSerializer.Serialize(@event)))!);
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
-            return evt.Select(e => e.Id).ToArray();
+            return eventResults;
         }
 
         public async Task<(string filterId, NostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)

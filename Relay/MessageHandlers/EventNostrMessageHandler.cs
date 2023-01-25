@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
@@ -24,7 +25,7 @@ namespace Relay
         public EventNostrMessageHandler(NostrEventService nostrEventService,
             ILogger<EventNostrMessageHandler> logger,
             StateManager stateManager,
-            IOptions<RelayOptions>options)
+            IOptions<RelayOptions> options)
         {
             _nostrEventService = nostrEventService;
             _logger = logger;
@@ -45,16 +46,30 @@ namespace Relay
                         var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
                         if (e.Verify())
                         {
-                          var added =   await _nostrEventService.AddEvent(new [] {e});
-                          if (added.Length == 0)
-                          {
-                              _stateManager.PendingMessages.Writer.TryWrite((evt.Item1,
-                                  JsonSerializer.Serialize(new[]
-                                  {
-                                      "NOTICE",
-                                      $"Event {e.Id} was not added to this relay. This relay charges {_options.Value.PubKeyCost} for new pubkey registrations and {_options.Value.EventCost} per event {(_options.Value.EventCostPerByte ? "byte" : "")}. Send a message to {_options.Value.AdminPublicKey} for more info "
-                                  })));
-                          }
+                            var added = await _nostrEventService.AddEvent(new[] {e});
+                            if (_options.Value.EnableNip33)
+                            {
+                                foreach (var tuple in added)
+                                {
+                                    WriteOkMessage(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
+                                }
+                            }
+                            else if (added.Any(tuple => !tuple.success))
+                            {
+                                foreach (var tuple in added)
+                                {
+                                    _stateManager.PendingMessages.Writer.TryWrite((evt.Item1,
+                                        JsonSerializer.Serialize(new[]
+                                        {
+                                            "NOTICE",
+                                            $"Event {tuple.eventId} was not added to this relay. This relay charges {_options.Value.PubKeyCost} for new pubkey registrations and {_options.Value.EventCost} per event {(_options.Value.EventCostPerByte ? "byte" : "")}. Send a message to {_options.Value.AdminPublicKey} for more info "
+                                        })));
+                                }
+                            }
+                        }
+                        else if (_options.Value.EnableNip33)
+                        {
+                            WriteOkMessage(evt.Item1, e.Id, false, "invalid: event could not be verified");
                         }
                     }
                     catch (Exception exception)
@@ -63,6 +78,17 @@ namespace Relay
                     }
                 }
             }
+        }
+
+        private void WriteOkMessage(string connection, string eventId, bool success, string reason)
+        {
+            _stateManager.PendingMessages.Writer.TryWrite((connection, JsonSerializer.Serialize(new object[]
+            {
+                "OK",
+                eventId,
+                success,
+                reason
+            })));
         }
 
         public async Task Handle(string connectionId, string msg)
