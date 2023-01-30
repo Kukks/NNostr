@@ -191,7 +191,7 @@ namespace NNostr.Client
 
         private async Task WaitUntilConnected(CancellationToken token)
         {
-            while (websocket.State != WebSocketState.Open && !token.IsCancellationRequested)
+            while (websocket != null && websocket.State != WebSocketState.Open && !token.IsCancellationRequested)
             {
                 await Task.Delay(100, token);
             }
