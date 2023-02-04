@@ -31,7 +31,7 @@ namespace NNostr.Client
         {
             if (handlenip4 && nostrEvent.Kind == 4)
             {
-                await nostrEvent.EncryptNip04Event(priv);
+                nostrEvent.EncryptNip04Event(priv);
             }
             nostrEvent.Id = nostrEvent.ComputeId();
             nostrEvent.Signature = nostrEvent.ComputeSignature(priv);

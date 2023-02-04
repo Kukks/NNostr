@@ -64,7 +64,7 @@ public class AdminChatBot : IHostedService
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
-            var content = await evt.DecryptNip04Event(_options.Value.AdminPrivateKey);
+            var content = evt.DecryptNip04Event(_options.Value.AdminPrivateKey);
             //we have a dm!
             if (content.StartsWith("/"))
             {
