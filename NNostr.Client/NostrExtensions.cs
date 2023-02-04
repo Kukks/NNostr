@@ -9,7 +9,7 @@ namespace NNostr.Client
         public static string ToJson(this NostrEvent nostrEvent, bool withoutId)
         {
             return
-                $"[{(withoutId? 0: $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{nostrEvent.Content}\"]";
+                $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{nostrEvent.Content}\"]";
         }
 
         public static string ComputeEventId(this string eventJson)
@@ -24,7 +24,7 @@ namespace NNostr.Client
 
         public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv)
         {
-            return nostrEvent.ToJson(true).ComputeSchnorrSignature(priv);
+            return nostrEvent.ToJson(true).ComputeBIP340Signature(priv);
         }
 
         public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
@@ -41,21 +41,22 @@ namespace NNostr.Client
             {
                 nostrEvent.SetTag("nonce", counter.ToString(), powDifficulty.ToString());
             }
-            
         }
 
         public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data)
         {
-           nostrEvent.Tags.RemoveAll(tag => tag.TagIdentifier == identifier);
-           nostrEvent.Tags.Add(new NostrEventTag()
-           {
-               TagIdentifier = identifier, Data = data.ToList(), EventId = nostrEvent.Id, Event = nostrEvent
-           });
+            nostrEvent.Tags.RemoveAll(tag => tag.TagIdentifier == identifier);
+            nostrEvent.Tags.Add(new NostrEventTag()
+            {
+                TagIdentifier = identifier,
+                Data = data.ToList(),
+                EventId = nostrEvent.Id,
+                Event = nostrEvent
+            });
         }
 
         public static int CountPowDifficulty(this NostrEvent @event, int? powDifficulty = null)
         {
-
             var pow = 0;
             foreach (var c in @event.Id)
             {
@@ -115,14 +116,14 @@ namespace NNostr.Client
         {
             return Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(key));
         }
-        
+
         public static string ToHex(this ECPrivKey key)
         {
-            Span<byte> output = new Span<byte>(new byte[32]);
+            Span<byte> output = stackalloc byte[32];
             key.WriteToSpan(output);
             return output.ToHex();
         }
-        
+
         public static string ToHex(this ECXOnlyPubKey key)
         {
             return key.ToBytes().AsSpan().ToHex();
@@ -135,64 +136,63 @@ namespace NNostr.Client
 
         public static string[] GetTaggedData(this NostrEvent e, string identifier)
         {
-            
             return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
         }
-        
+
         public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, NostrSubscriptionFilter filter)
         {
             var filterQuery = events;
 
-                if (filter.Ids?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<NostrEvent>(),
-                        (current, temp) => current.Or(p => p.Id.StartsWith(temp))));
-                }
+            if (filter.Ids?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<NostrEvent>(),
+                    (current, temp) => current.Or(p => p.Id.StartsWith(temp))));
+            }
 
-                if (filter.Kinds?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e => filter.Kinds.Contains(e.Kind));
-                }
+            if (filter.Kinds?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e => filter.Kinds.Contains(e.Kind));
+            }
 
-                if (filter.Since != null)
-                {
-                    filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
-                }
+            if (filter.Since != null)
+            {
+                filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
+            }
 
-                if (filter.Until != null)
-                {
-                    filterQuery = filterQuery.Where(e => e.CreatedAt < filter.Until);
-                }
+            if (filter.Until != null)
+            {
+                filterQuery = filterQuery.Where(e => e.CreatedAt < filter.Until);
+            }
 
-                var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
-                if (authors?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<NostrEvent>(),
-                        (current, temp) => current.Or(p => p.PublicKey.StartsWith(temp))));
-                }
+            var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
+            if (authors?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<NostrEvent>(),
+                    (current, temp) => current.Or(p => p.PublicKey.StartsWith(temp))));
+            }
 
-                if (filter.EventId?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
-                }
+            if (filter.EventId?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e =>
+                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
+            }
 
-                if (filter.PublicKey?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
-                }
+            if (filter.PublicKey?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e =>
+                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
+            }
 
-                var tagFilters = filter.GetAdditionalTagFilters();
-                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery,
-                    (current, tagFilter) => current.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Equals(tag.Data[1]))));
+            var tagFilters = filter.GetAdditionalTagFilters();
+            filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery,
+                (current, tagFilter) => current.Where(e =>
+                    e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Equals(tag.Data[1]))));
 
-                if (filter.Limit is not null)
-                {
-                    filterQuery = filterQuery.OrderBy(e => e.CreatedAt).TakeLast(filter.Limit.Value);
-                }
-                return filterQuery;
+            if (filter.Limit is not null)
+            {
+                filterQuery = filterQuery.OrderBy(e => e.CreatedAt).TakeLast(filter.Limit.Value);
+            }
+            return filterQuery;
         }
 
         public static IEnumerable<NostrEvent> FilterByLimit(this IEnumerable<NostrEvent> events, int? limitFilter)
@@ -203,54 +203,53 @@ namespace NNostr.Client
         public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, NostrSubscriptionFilter filter)
         {
             var filterQuery = events;
-               
 
-                if (filter.Ids?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e => filter.Ids.Any(s => e.Id.StartsWith(s)));
-                }
 
-                if (filter.Kinds?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e => filter.Kinds.Contains(e.Kind));
-                }
+            if (filter.Ids?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e => filter.Ids.Any(s => e.Id.StartsWith(s)));
+            }
 
-                if (filter.Since != null)
-                {
-                    filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
-                }
+            if (filter.Kinds?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e => filter.Kinds.Contains(e.Kind));
+            }
 
-                if (filter.Until != null)
-                {
-                    filterQuery = filterQuery.Where(e => e.CreatedAt < filter.Until);
-                }
+            if (filter.Since != null)
+            {
+                filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
+            }
 
-                var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
-                if (authors?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e => authors.Any(s => e.PublicKey.StartsWith(s)));
-                }
+            if (filter.Until != null)
+            {
+                filterQuery = filterQuery.Where(e => e.CreatedAt < filter.Until);
+            }
 
-                if (filter.EventId?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
-                }
+            var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
+            if (authors?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e => authors.Any(s => e.PublicKey.StartsWith(s)));
+            }
 
-                if (filter.PublicKey?.Any() is true)
-                {
-                    filterQuery = filterQuery.Where(e =>
-                        e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
-                }
+            if (filter.EventId?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e =>
+                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
+            }
 
-                var tagFilters = filter.GetAdditionalTagFilters();
-                filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery,
-                    (current, tagFilter) => current.Where(e =>
-                        e.Tags.Any(tag =>
-                            tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0]))));
+            if (filter.PublicKey?.Any() is true)
+            {
+                filterQuery = filterQuery.Where(e =>
+                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
+            }
 
-               
-                return filterQuery;
+            var tagFilters = filter.GetAdditionalTagFilters();
+            filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery,
+                (current, tagFilter) => current.Where(e =>
+                    e.Tags.Any(tag =>
+                        tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0]))));
+
+            return filterQuery;
         }
     }
 }
