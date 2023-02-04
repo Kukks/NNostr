@@ -1,6 +1,5 @@
-using System.Text.Encodings.Web;
-using System.Text.Json;
 using LinqKit;
+
 using NBitcoin.Secp256k1;
 
 namespace NNostr.Client
@@ -15,7 +14,7 @@ namespace NNostr.Client
 
         public static string ComputeEventId(this string eventJson)
         {
-            return eventJson.ComputeSha256Hash().ToHex();
+            return eventJson.ComputeSha256Hash().AsSpan().ToHex();
         }
 
         public static string ComputeId(this NostrEvent nostrEvent)
@@ -25,7 +24,7 @@ namespace NNostr.Client
 
         public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv)
         {
-            return nostrEvent.ToJson(true).ComputeSignature(priv);
+            return nostrEvent.ToJson(true).ComputeSchnorrSignature(priv);
         }
 
         public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
@@ -88,13 +87,13 @@ namespace NNostr.Client
         public static bool Verify(this NostrEvent nostrEvent)
         {
             var hash = nostrEvent.ToJson(true).ComputeSha256Hash();
-            if (hash.ToHex() != nostrEvent.Id)
+            if (hash.AsSpan().ToHex() != nostrEvent.Id)
             {
                 return false;
             }
 
             var pub = nostrEvent.GetPublicKey();
-            if (!SecpSchnorrSignature.TryCreate(nostrEvent.Signature.DecodHexData(), out var sig))
+            if (!SecpSchnorrSignature.TryCreate(Convert.FromHexString(nostrEvent.Signature), out var sig))
             {
                 return false;
             }
@@ -109,12 +108,12 @@ namespace NNostr.Client
 
         public static ECPrivKey ParseKey(string key)
         {
-            return ECPrivKey.Create(key.DecodHexData());
+            return ECPrivKey.Create(Convert.FromHexString(key));
         }
 
         public static ECXOnlyPubKey ParsePubKey(string key)
         {
-            return Context.Instance.CreateXOnlyPubKey(key.DecodHexData());
+            return Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(key));
         }
         
         public static string ToHex(this ECPrivKey key)
@@ -126,7 +125,7 @@ namespace NNostr.Client
         
         public static string ToHex(this ECXOnlyPubKey key)
         {
-            return key.ToBytes().ToHex();
+            return key.ToBytes().AsSpan().ToHex();
         }
 
         public static string[] GetTaggedEvents(this NostrEvent e)

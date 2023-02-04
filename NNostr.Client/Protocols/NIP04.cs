@@ -20,16 +20,17 @@ public static class NIP04
         }
 
         var ourPubKey = key.CreateXOnlyPubKey();
-        var ourPubKeyHex = ourPubKey.ToBytes().ToHex();
+        var ourPubKeyHex = ourPubKey.ToBytes().AsSpan().ToHex();
         var areWeSender = false;
-        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(receiverPubKeyStr.DecodHexData());
+        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(receiverPubKeyStr));
         
-        var receiverPubKeyHex = receiverPubKey.ToBytes().ToHex();
+        var receiverPubKeyHex = receiverPubKey.ToBytes().AsSpan().ToHex();
         var senderPubkKey = nostrEvent.GetPublicKey();
         if (nostrEvent.PublicKey == ourPubKeyHex)
         {
             areWeSender = true;
-        }else if (receiverPubKeyHex == ourPubKeyHex)
+        }
+        else if (receiverPubKeyHex == ourPubKeyHex)
         {
             areWeSender = false;
         }
@@ -61,28 +62,24 @@ public static class NIP04
         var ourPubKey = key.CreateXOnlyPubKey();
         if (nostrEvent.PublicKey == null)
         {
-            nostrEvent.PublicKey = ourPubKey.ToBytes().ToHex();
-        }else if (nostrEvent.PublicKey != ourPubKey.ToBytes().ToHex())
+            nostrEvent.PublicKey = ourPubKey.ToBytes().AsSpan().ToHex();
+        }
+        else if (nostrEvent.PublicKey != ourPubKey.ToBytes().AsSpan().ToHex())
         {
             throw new ArgumentException( "key does not match sender of this event", nameof(key));
         }
-        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(receiverPubKeyStr.DecodHexData());
+        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(receiverPubKeyStr));
         var sharedKey = GetSharedPubkey(receiverPubKey, key).ToBytes().Skip(1).ToArray();
 
         var result = await Encryptor.Encrypt(nostrEvent.Content, sharedKey);
         nostrEvent.Content = $"{result.cipherText}?iv={result.iv}";
-
     }
     
-    private static byte[] posBytes =  "02".DecodHexData();
     private static ECPubKey? GetSharedPubkey(this ECXOnlyPubKey ecxOnlyPubKey, ECPrivKey key)
     {
-        Context.Instance.TryCreatePubKey(posBytes.Concat(ecxOnlyPubKey.ToBytes()).ToArray(), out var mPubKey);
+        Context.Instance.TryCreatePubKey(new byte[] { 0x02 }.Concat(ecxOnlyPubKey.ToBytes()).ToArray(), out var mPubKey);
         return mPubKey?.GetSharedPubkey(key);
-    }
-    
-   
-    
+    } 
 }
 
 public interface IAesEncryptor
