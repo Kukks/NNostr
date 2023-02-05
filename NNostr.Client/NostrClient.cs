@@ -183,6 +183,7 @@ namespace NNostr.Client
 
             websocket?.Dispose();
             websocket = new ClientWebSocket();
+            websocket.Options.SetRequestHeader("origin", _relay.ToString());
             var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             await websocket.ConnectAsync(_relay, cts.Token);
             await WaitUntilConnected(cts.Token);
