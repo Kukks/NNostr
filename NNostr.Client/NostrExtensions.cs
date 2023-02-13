@@ -27,11 +27,11 @@ namespace NNostr.Client
             return nostrEvent.ToJson(true).ComputeBIP340Signature(priv);
         }
 
-        public static async Task ComputeIdAndSign(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
+        public static async ValueTask ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
         {
             if (handlenip4 && nostrEvent.Kind == 4)
             {
-                nostrEvent.EncryptNip04Event(priv);
+                await nostrEvent.EncryptNip04EventAsync(priv);
             }
             nostrEvent.Id = nostrEvent.ComputeId();
             nostrEvent.Signature = nostrEvent.ComputeSignature(priv);

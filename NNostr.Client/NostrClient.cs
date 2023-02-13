@@ -188,17 +188,17 @@ namespace NNostr.Client
 
             _cts ??= CancellationTokenSource.CreateLinkedTokenSource(token);
 
-            websocket?.Dispose();
-            websocket = new ClientWebSocket();
-            websocket.Options.SetRequestHeader("origin", _relay.ToString());
-            var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            await websocket.ConnectAsync(_relay, cts.Token);
+            WebSocket?.Dispose();
+            WebSocket = new ClientWebSocket();
+            WebSocket.Options.SetRequestHeader("origin", _relay.ToString());
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
+            await WebSocket.ConnectAsync(_relay, cts.Token);
             await WaitUntilConnected(cts.Token);
         }
 
         private async Task WaitUntilConnected(CancellationToken token)
         {
-            while (websocket != null && websocket.State != WebSocketState.Open && !token.IsCancellationRequested)
+            while (WebSocket != null && WebSocket.State != WebSocketState.Open && !token.IsCancellationRequested)
             {
                 await Task.Delay(100, token);
             }
