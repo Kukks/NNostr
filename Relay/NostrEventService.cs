@@ -234,7 +234,7 @@ namespace Relay
 
         public async Task<(string filterId, NostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)
         {
-            var id = JsonSerializer.Serialize(filter).ComputeSha256Hash().ToHex();
+            var id = JsonSerializer.Serialize(filter).ComputeSha256Hash().AsSpan().ToHex();
             ActiveFilters.TryAdd(id, filter);
             return (id, await CachedFilterResults.GetOrAddAsync(id, GetFromDB));
         }
@@ -244,7 +244,7 @@ namespace Relay
             var result = new List<NostrEvent>();
             foreach (var nostrSubscriptionFilter in filter)
             {
-                var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().ToHex();
+                var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().AsSpan().ToHex();
                 result.AddRange(await CachedFilterResults.GetOrAddAsync(id, s => GetFromDB(nostrSubscriptionFilter)));
             }
 

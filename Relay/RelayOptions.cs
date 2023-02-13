@@ -40,7 +40,7 @@ public class RelayOptions
         }
     }
 
-    public string? AdminPublicKey => AdminPrivateKey?.CreateXOnlyPubKey()?.ToBytes()?.ToHex();
+    public string? AdminPublicKey => AdminPrivateKey?.CreateXOnlyPubKey()?.ToBytes()?.AsSpan().ToHex();
 
     public Uri? BTCPayServerUri { get; set; }
     public string? BTCPayServerApiKey { get; set; }

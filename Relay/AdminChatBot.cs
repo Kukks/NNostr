@@ -64,7 +64,7 @@ public class AdminChatBot : IHostedService
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
-            var content = await evt.DecryptNip04Event(_options.Value.AdminPrivateKey);
+            var content = await evt.DecryptNip04EventAsync(_options.Value.AdminPrivateKey);
             //we have a dm!
             if (content.StartsWith("/"))
             {
@@ -158,7 +158,7 @@ public class AdminChatBot : IHostedService
                                 }
                             }
                         };
-                        eventReply.EncryptNip04Event(_options.Value.AdminPrivateKey);
+                        await eventReply.EncryptNip04EventAsync(_options.Value.AdminPrivateKey);
                         eventReply.Signature = eventReply.ComputeSignature(_options.Value.AdminPrivateKey);
                         await _nostrEventService.AddEvent(new []{eventReply});
                         break;
@@ -193,7 +193,7 @@ public class AdminChatBot : IHostedService
                                 }
                             }
                         };
-                        await eventReply.ComputeIdAndSign(_options.Value.AdminPrivateKey);
+                        await eventReply.ComputeIdAndSignAsync(_options.Value.AdminPrivateKey);
                         _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
                         await _nostrEventService.AddEvent(new []{eventReply});
                         break;
