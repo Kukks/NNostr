@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 using NNostr.Client;
@@ -6,6 +7,7 @@ using NNostr.Client;
 namespace Relay;
 
 [JsonConverter(typeof(RelayNostrEventTagJsonConverter))]
+
 public class RelayNostrEventTag : NostrEventTag, IEqualityComparer<NostrEventTag>
 {
     [JsonIgnore]

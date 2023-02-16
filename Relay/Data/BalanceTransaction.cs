@@ -11,7 +11,7 @@ public class BalanceTransaction
     public string? EventId { get; set; }
     public long Value { get; set; }
     public DateTimeOffset Timestamp { get; set; }
-    public NostrEvent? Event { get; set; }
+    public RelayNostrEvent? Event { get; set; }
     public BalanceTopup? Topup { get; set; }
     public Balance Balance { get; set; }
 }
