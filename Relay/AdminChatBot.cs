@@ -4,14 +4,11 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using BTCPayServer.Client;
 using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using NBitcoin;
-using Newtonsoft.Json.Linq;
 using NNostr.Client;
 using Relay.Data;
 
@@ -25,7 +22,7 @@ public class AdminChatBot : IHostedService
     private readonly BTCPayServerService _btcPayServerService;
     private readonly ILogger<AdminChatBot> _logger;
 
-    private readonly Channel<NostrEvent> PendingMessages = Channel.CreateUnbounded<NostrEvent>();
+    private readonly Channel<RelayNostrEvent> PendingMessages = Channel.CreateUnbounded<RelayNostrEvent>();
 
     public AdminChatBot(NostrEventService nostrEventService, IOptions<RelayOptions> options,
         IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService, ILogger<AdminChatBot> logger)
@@ -38,7 +35,7 @@ public class AdminChatBot : IHostedService
         _nostrEventService.NewEvents += NostrEventServiceOnNewEvents;
     }
 
-    private void NostrEventServiceOnNewEvents(object? sender, NostrEvent[] e)
+    private void NostrEventServiceOnNewEvents(object? sender, RelayNostrEvent[] e)
     {
         foreach (var nostrEvent in e)
         {
@@ -57,14 +54,14 @@ public class AdminChatBot : IHostedService
         }
     }
 
-    private async Task HandleMessage(NostrEvent evt)
+    private async Task HandleMessage(RelayNostrEvent evt)
     {
         var adminPubKey = _options.Value.AdminPublicKey;
         if (!string.IsNullOrEmpty(adminPubKey) && evt.Kind == 4 && evt.Tags.Any(tag =>
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
-            var content = await evt.DecryptNip04EventAsync(_options.Value.AdminPrivateKey);
+            var content = await evt.DecryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.Value.AdminPrivateKey);
             //we have a dm!
             if (content.StartsWith("/"))
             {
@@ -133,12 +130,12 @@ public class AdminChatBot : IHostedService
                             await context.BalanceTopups.AddAsync(topup);
                         }
 
-                        var eventReply = new NostrEvent()
+                        var eventReply = new RelayNostrEvent()
                         {
                             Content = $"Topup here: {i.CheckoutLink}",
                             Kind = 4,
                             PublicKey = _options.Value.AdminPublicKey,
-                            Tags = new List<NostrEventTag>()
+                            Tags = new List<RelayNostrEventTag>()
                             {
                                 new()
                                 {
@@ -158,8 +155,8 @@ public class AdminChatBot : IHostedService
                                 }
                             }
                         };
-                        await eventReply.EncryptNip04EventAsync(_options.Value.AdminPrivateKey);
-                        eventReply.Signature = eventReply.ComputeSignature(_options.Value.AdminPrivateKey);
+                        await eventReply.EncryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.Value.AdminPrivateKey);
+                        eventReply.Signature = eventReply.ComputeSignature<RelayNostrEvent, RelayNostrEventTag>(_options.Value.AdminPrivateKey);
                         await _nostrEventService.AddEvent(new []{eventReply});
                         break;
                     }
@@ -168,12 +165,12 @@ public class AdminChatBot : IHostedService
                     {
                         await using var context = await _dbContextFactory.CreateDbContextAsync();
                         var b = await context.Balances.FindAsync(evt.PublicKey);
-                        var eventReply = new NostrEvent()
+                        var eventReply = new RelayNostrEvent()
                         {
                             Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost * -1}.",
                             Kind = 4,
                             PublicKey = _options.Value.AdminPublicKey,
-                            Tags = new List<NostrEventTag>()
+                            Tags = new List<RelayNostrEventTag>()
                             {
                                 new()
                                 {
@@ -193,7 +190,7 @@ public class AdminChatBot : IHostedService
                                 }
                             }
                         };
-                        await eventReply.ComputeIdAndSignAsync(_options.Value.AdminPrivateKey);
+                        await eventReply.ComputeIdAndSignAsync<RelayNostrEvent, RelayNostrEventTag>(_options.Value.AdminPrivateKey);
                         _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
                         await _nostrEventService.AddEvent(new []{eventReply});
                         break;

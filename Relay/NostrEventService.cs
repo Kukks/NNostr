@@ -15,14 +15,14 @@ namespace Relay
 {
     public class NostrEventService
     {
-        private ConcurrentDictionary<string, NostrEvent[]> CachedFilterResults =
+        private ConcurrentDictionary<string, RelayNostrEvent[]> CachedFilterResults =
             new();
 
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
         private readonly IOptions<RelayOptions> _options;
         public event EventHandler<NostrEventsMatched>? EventsMatched;
-        public event EventHandler<NostrEvent[]>? NewEvents;
+        public event EventHandler<RelayNostrEvent[]>? NewEvents;
 
         private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
             new();
@@ -35,7 +35,7 @@ namespace Relay
             _options = options;
         }
 
-        private long ComputeCost(NostrEvent evt, out bool isToAdmin)
+        private long ComputeCost(RelayNostrEvent evt, out bool isToAdmin)
         {
             var adminPubKey = _options.Value.AdminPublicKey;
             isToAdmin = false;
@@ -58,10 +58,10 @@ namespace Relay
                 return _options.Value.EventCost;
             }
 
-            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson(false));
+            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson<RelayNostrEvent,RelayNostrEventTag>(false));
         }
 
-        public async Task<List<(string eventId, bool success, string reason)>> AddEvent(NostrEvent[] evt)
+        public async Task<List<(string eventId, bool success, string reason)>> AddEvent(RelayNostrEvent[] evt)
         {
             var eventResults = new List<(string eventId, bool success, string reason)>();
             var evtIds = evt.Select(e => e.Id).ToArray();
@@ -82,14 +82,14 @@ namespace Relay
             if (_options.Value.EventCost > 0 || _options.Value.PubKeyCost > 0)
             {
                 var eventsGroupedByAuthor = evt.GroupBy(e => e.PublicKey);
-                var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, NostrEvent>[] ??
+                var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, RelayNostrEvent>[] ??
                                                  eventsGroupedByAuthor.ToArray();
                 var authors = eventsGroupedByAuthorItems.Select(events => events.Key).ToHashSet();
                 var balanceLookup =
                     (await context.Balances.Where(balance => authors.Contains(balance.PublicKey)).ToListAsync())
                     .ToDictionary(balance => balance.PublicKey);
 
-                var notvalid = new List<NostrEvent>();
+                var notvalid = new List<RelayNostrEvent>();
                 foreach (var eventsGroupedByAuthorItem in eventsGroupedByAuthorItems)
                 {
                     balanceLookup.TryGetValue(eventsGroupedByAuthorItem.Key, out var authorBalance);
@@ -180,12 +180,12 @@ namespace Relay
                 var replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
-                    var dValue = eventsToReplace.GetTaggedData("d").FirstOrDefault() ?? string.Empty;
+                    var dValue = eventsToReplace.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? string.Empty;
                     replacedEvents.AddRange(context.Events.Where(evt2 =>
                         evt2.PublicKey.Equals(eventsToReplace.Id,
                             StringComparison.InvariantCultureIgnoreCase) && 
                         eventsToReplace.Kind == evt2.Kind &&
-                        dValue== (evt2.GetTaggedData("d").FirstOrDefault()??"") &&
+                        dValue== (evt2.GetTaggedData<RelayNostrEvent,RelayNostrEventTag>("d").FirstOrDefault()??"") &&
                         evt2.CreatedAt < eventsToReplace.CreatedAt));
                 }
 
@@ -196,7 +196,7 @@ namespace Relay
 
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
-                var matched = evt.Filter( nostrSubscriptionFilter.Value).ToArray();
+                var matched = evt.Filter<RelayNostrEvent,RelayNostrEventTag>( nostrSubscriptionFilter.Value).ToArray();
                 if (!matched.Any()) continue;
 
                 var matchedList = matched.ToArray();
@@ -205,7 +205,7 @@ namespace Relay
                 if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
                 {
                     var updatedResult = currentFilterValues.Concat(matchedList)
-                        .Where(e => !removedEvents.Contains(e.Id)).FilterByLimit(nostrSubscriptionFilter.Value.Limit)
+                        .Where(e => !removedEvents.Contains(e.Id)).FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit)
                         .ToArray();
                     CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
                 }
@@ -213,7 +213,7 @@ namespace Relay
                 {
                     CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key,
                         matchedList.Where(e => !removedEvents.Contains(e.Id))
-                            .FilterByLimit(nostrSubscriptionFilter.Value.Limit).ToArray());
+                            .FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit).ToArray());
                 }
 
                 EventsMatched?.Invoke(this, new NostrEventsMatched()
@@ -232,16 +232,16 @@ namespace Relay
             return eventResults;
         }
 
-        public async Task<(string filterId, NostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)
+        public async Task<(string filterId, RelayNostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)
         {
             var id = JsonSerializer.Serialize(filter).ComputeSha256Hash().AsSpan().ToHex();
             ActiveFilters.TryAdd(id, filter);
             return (id, await CachedFilterResults.GetOrAddAsync(id, GetFromDB));
         }
 
-        public async Task<NostrEvent[]> FetchData(params NostrSubscriptionFilter[] filter)
+        public async Task<RelayNostrEvent[]> FetchData(params NostrSubscriptionFilter[] filter)
         {
-            var result = new List<NostrEvent>();
+            var result = new List<RelayNostrEvent>();
             foreach (var nostrSubscriptionFilter in filter)
             {
                 var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().AsSpan().ToHex();
@@ -251,7 +251,7 @@ namespace Relay
             return result.Distinct().ToArray();
         }
 
-        private async Task<NostrEvent[]> GetFromDB(string filterId)
+        private async Task<RelayNostrEvent[]> GetFromDB(string filterId)
         {
             if (ActiveFilters.TryGetValue(filterId, out var filter))
             {
@@ -261,10 +261,10 @@ namespace Relay
             throw new ArgumentOutOfRangeException(nameof(filterId), "Filter is not active");
         }
 
-        private async Task<NostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
+        private async Task<RelayNostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
         {
             await using var context = await _dbContextFactory.CreateDbContextAsync();
-            return await context.Events.Include(e => e.Tags).Where(e => !e.Deleted).Filter(filter).ToArrayAsync();
+            return await context.Events.Include(e => e.Tags).Where(e => !e.Deleted).Filter<RelayNostrEvent,RelayNostrEventTag>(filter).ToArrayAsync();
         }
 
         public void RemoveFilter(string removedFilter)

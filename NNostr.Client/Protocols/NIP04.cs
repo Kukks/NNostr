@@ -23,7 +23,8 @@ public static class NIP04
     /// <param name="privateKey">The receiver private key.</param>
     /// <param name="aes">The AES-256-CBC implementation to use in the decryption. If <c>null</c>, uses the native platform provided implementation.</param>
     /// <returns>Decrypted <see cref="NostrEvent.Content"/>.</returns>
-    public static async ValueTask<string> DecryptNip04EventAsync(this NostrEvent nostrEvent, ECPrivKey privateKey, IAesEncryption? aes = null)
+    public static async ValueTask<string> DecryptNip04EventAsync(this NostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null) => await nostrEvent.DecryptNip04EventAsync<NostrEvent, NostrEventTag>(privateKey, aes);
+    public static async ValueTask<string> DecryptNip04EventAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
     {
         // By default, use native AES implementation.
         aes ??= _platformAesImplementation;
@@ -45,7 +46,7 @@ public static class NIP04
         var receiverPubKey = Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(receiverPubKeyStr));
 
         var receiverPubKeyHex = receiverPubKey.ToBytes().AsSpan().ToHex();
-        var senderPubkKey = nostrEvent.GetPublicKey();
+        var senderPubkKey = nostrEvent.GetPublicKey<TNostrEvent, TEventTag>();
         if (nostrEvent.PublicKey == ourPubKeyHex)
         {
             areWeSender = true;
@@ -77,7 +78,8 @@ public static class NIP04
     /// <param name="nostrEvent">The event which content will be encrypted.</param>
     /// <param name="privateKey">The sender private key.</param>
     /// <param name="aes">The AES-256-CBC implementation to use in the encryption. If <c>null</c>, uses the native platform provided implementation.</param>
-    public static async ValueTask EncryptNip04EventAsync(this NostrEvent nostrEvent, ECPrivKey privateKey, IAesEncryption? aes = null)
+    public static async ValueTask EncryptNip04EventAsync(this NostrEvent nostrEvent, ECPrivKey privateKey, IAesEncryption? aes = null)=> await nostrEvent.EncryptNip04EventAsync<NostrEvent, NostrEventTag>(privateKey, aes);
+    public static async ValueTask EncryptNip04EventAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey privateKey, IAesEncryption? aes = null) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
     {
         // By default, use native AES implementation.
         aes ??= _platformAesImplementation;

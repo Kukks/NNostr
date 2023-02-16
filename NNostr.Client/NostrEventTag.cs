@@ -10,19 +10,27 @@ namespace NNostr.Client
     public class NostrEventTag
     {
         private static JsonSerializerOptions _unsafeJsonEscapingOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
-
-        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-        public string Id { get; set; }
-
-        public string EventId { get; set; }
         public string TagIdentifier { get; set; }
         public List<string> Data { get; set; } = new();
-        [JsonIgnore] public NostrEvent Event { get; set; }
 
         public override string ToString()
         {
             var d = TagIdentifier is null ? Data : Data.Prepend(TagIdentifier);
             return JsonSerializer.Serialize(d, _unsafeJsonEscapingOptions);
+        }
+        
+        public bool Equals(NostrEventTag? x, NostrEventTag? y)
+        {
+            if (ReferenceEquals(x, y)) return true;
+            if (ReferenceEquals(x, null)) return false;
+            if (ReferenceEquals(y, null)) return false;
+            if (x.GetType() != y.GetType()) return false;
+            return x.TagIdentifier == y.TagIdentifier && x.Data.SequenceEqual(y.Data);
+        }
+
+        public int GetHashCode(NostrEventTag obj)
+        {
+            return HashCode.Combine(obj.TagIdentifier, obj.Data);
         }
     }
 }

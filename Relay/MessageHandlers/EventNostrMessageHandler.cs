@@ -43,17 +43,17 @@ namespace Relay
                     {
                         _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
                         var json = JsonDocument.Parse(evt.Item2).RootElement;
-                        var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
+                        var e = JsonSerializer.Deserialize<RelayNostrEvent>(json[1].GetRawText());
                         if (_options.Value.Nip13Difficulty > 0)
                         {
-                            var count = e.CountPowDifficulty(_options.Value.Nip13Difficulty);
+                            var count = e.CountPowDifficulty<RelayNostrEvent, RelayNostrEventTag>(_options.Value.Nip13Difficulty);
 
                             if (count < _options.Value.Nip13Difficulty)
                             {
                                 
                                 WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.Value.Nip13Difficulty}");
                             }
-                        }else if (e.Verify())
+                        }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
                         {
                             var added = await _nostrEventService.AddEvent(new[] {e});
                             if (_options.Value.EnableNip20)

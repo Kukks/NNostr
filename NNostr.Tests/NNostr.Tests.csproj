@@ -23,6 +23,7 @@
 
     <ItemGroup>
       <ProjectReference Include="..\NNostr.Client\NNostr.Client.csproj" />
+      <ProjectReference Include="..\Relay\Relay.csproj" />
     </ItemGroup>
 
 </Project>

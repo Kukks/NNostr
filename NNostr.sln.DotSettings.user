@@ -15,7 +15,7 @@
 &lt;/SessionState&gt;</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=92b03e6a_002Db306_002D4dee_002D86f3_002D9fdde482ce52/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" IsActive="True" Name="Test1 #2" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;
   &lt;TestAncestor&gt;&#xD;
-    &lt;TestId&gt;xUnit::8CB3C821-354F-4CAA-90BE-D5DA201394D0::net6.0::NNostr.Tests.UnitTest1.CanHandleStupidEvents&lt;/TestId&gt;&#xD;
+    &lt;TestId&gt;xUnit::8CB3C821-354F-4CAA-90BE-D5DA201394D0::net6.0::NNostr.Tests.EqualityTests.EqualityWorksBetweenEventBaseClasses&lt;/TestId&gt;&#xD;
   &lt;/TestAncestor&gt;&#xD;
 &lt;/SessionState&gt;</s:String>
 	<s:String x:Key="/Default/Environment/UnitTesting/UnitTestSessionStore/Sessions/=da5f2fb9_002D8de2_002D4dfc_002Da93a_002D3f92ea1e32fc/@EntryIndexedValue">&lt;SessionState ContinuousTestingMode="0" Name="CanHandleNIP04" xmlns="urn:schemas-jetbrains-com:jetbrains-ut-session"&gt;&#xD;

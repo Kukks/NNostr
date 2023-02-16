@@ -43,7 +43,7 @@ namespace Relay
                 filters.Add(JsonSerializer.Deserialize<NostrSubscriptionFilter>(json[i].GetRawText()));
             }
 
-            var results = new List<NostrEvent[]>();
+            var results = new List<RelayNostrEvent[]>();
             _stateManager.SubscriptionToFilter.TryGetValue(id, out var existingFilters);
             _stateManager.SubscriptionToFilter.Remove(id);
 
