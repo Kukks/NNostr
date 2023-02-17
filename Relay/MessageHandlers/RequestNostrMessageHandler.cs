@@ -44,7 +44,7 @@ namespace Relay
             }
 
             var results = new List<RelayNostrEvent[]>();
-            _stateManager.SubscriptionToFilter.TryGetValue(id, out var existingFilters);
+            _stateManager.SubscriptionToFilter.TryGetValues(id, out var existingFilters);
             _stateManager.SubscriptionToFilter.Remove(id);
 
             var newids = new List<string>();

@@ -194,7 +194,7 @@ namespace NNostr.Client
 
             if (filter.Limit is not null)
             {
-                filterQuery = filterQuery.OrderBy(e => e.CreatedAt).TakeLast(filter.Limit.Value);
+                filterQuery = filterQuery.OrderByDescending(e => e.CreatedAt).Take(filter.Limit.Value);
             }
             return filterQuery;
         }

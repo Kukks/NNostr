@@ -20,7 +20,7 @@ namespace Relay
 
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
-        private readonly IOptions<RelayOptions> _options;
+        private readonly IOptionsMonitor<RelayOptions> _options;
         public event EventHandler<NostrEventsMatched>? EventsMatched;
         public event EventHandler<RelayNostrEvent[]>? NewEvents;
 
@@ -28,7 +28,7 @@ namespace Relay
             new();
 
         public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger,
-            IOptions<RelayOptions> options)
+            IOptionsMonitor<RelayOptions> options)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
@@ -37,7 +37,7 @@ namespace Relay
 
         private long ComputeCost(RelayNostrEvent evt, out bool isToAdmin)
         {
-            var adminPubKey = _options.Value.AdminPublicKey;
+            var adminPubKey = _options.CurrentValue.AdminPublicKey;
             isToAdmin = false;
             if (evt.PublicKey == adminPubKey)
             {
@@ -53,12 +53,12 @@ namespace Relay
                 return 0;
             }
 
-            if (!_options.Value.EventCostPerByte)
+            if (!_options.CurrentValue.EventCostPerByte)
             {
-                return _options.Value.EventCost;
+                return _options.CurrentValue.EventCost;
             }
 
-            return _options.Value.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson<RelayNostrEvent,RelayNostrEventTag>(false));
+            return _options.CurrentValue.EventCost * Encoding.UTF8.GetByteCount(evt.ToJson<RelayNostrEvent,RelayNostrEventTag>(false));
         }
 
         public async Task<List<(string eventId, bool success, string reason)>> AddEvent(RelayNostrEvent[] evt)
@@ -71,15 +71,15 @@ namespace Relay
             evt = evt.Where(e => !alreadyPresentEventIds.Contains(e.Id)).ToArray();
             eventResults.AddRange(alreadyPresentEventIds.Select(s => (s, true, "duplicate: Event has been processed before")));
             var invalidnip22 = evt.Where(e =>
-                !((_options.Value.Nip22BackwardLimit is null ||
-                  (DateTimeOffset.UtcNow - e.CreatedAt) <= _options.Value.Nip22BackwardLimit) &&
-                 (_options.Value.Nip22ForwardLimit is null ||
-                  (e.CreatedAt - DateTimeOffset.UtcNow) <= _options.Value.Nip22ForwardLimit)));
+                !((_options.CurrentValue.Nip22BackwardLimit is null ||
+                  (DateTimeOffset.UtcNow - e.CreatedAt) <= _options.CurrentValue.Nip22BackwardLimit) &&
+                 (_options.CurrentValue.Nip22ForwardLimit is null ||
+                  (e.CreatedAt - DateTimeOffset.UtcNow) <= _options.CurrentValue.Nip22ForwardLimit)));
             
             eventResults.AddRange(invalidnip22.Select(s => (s.Id, false, "invalid: event creation date is too far off from the current time. Is your system clock in sync?")));
             evt = evt.Except(invalidnip22).ToArray();
 
-            if (_options.Value.EventCost > 0 || _options.Value.PubKeyCost > 0)
+            if (_options.CurrentValue.EventCost > 0 || _options.CurrentValue.PubKeyCost > 0)
             {
                 var eventsGroupedByAuthor = evt.GroupBy(e => e.PublicKey);
                 var eventsGroupedByAuthorItems = eventsGroupedByAuthor as IGrouping<string, RelayNostrEvent>[] ??
@@ -95,10 +95,10 @@ namespace Relay
                     balanceLookup.TryGetValue(eventsGroupedByAuthorItem.Key, out var authorBalance);
                     authorBalance ??= new Balance()
                     {
-                        CurrentBalance = _options.Value.PubKeyCost * -1,
+                        CurrentBalance = _options.CurrentValue.PubKeyCost * -1,
                     };
                     // if (authorBalance.CurrentBalance < 0 ||
-                    //     (authorBalance.CurrentBalance == 0 && _options.Value.EventCost > 0))
+                    //     (authorBalance.CurrentBalance == 0 && _options.CurrentValue.EventCost > 0))
                     // {
                     //     notvalid.AddRange(eventsGroupedByAuthorItem);
                     // }
@@ -111,7 +111,7 @@ namespace Relay
                         }
                         else if (cost != 0)
                         {
-                            authorBalance.CurrentBalance -= _options.Value.EventCost;
+                            authorBalance.CurrentBalance -= _options.CurrentValue.EventCost;
                             await context.BalanceTransactions.AddAsync(new BalanceTransaction()
                             {
                                 BalanceId = eventsGroupedByAuthorItem.Key,
@@ -130,7 +130,7 @@ namespace Relay
             _logger.LogInformation($"Processing/Saving {evt.Length} new events");
 
             var removedEvents = new List<string>();
-            if (_options.Value.EnableNip09)
+            if (_options.CurrentValue.EnableNip09)
             {
                 var deletionEvents = evt.Where(e => e.Kind == 5).ToArray();
                 if (deletionEvents.Any())
@@ -157,7 +157,7 @@ namespace Relay
             }
 
             var evtsToSave = evt;
-            if (_options.Value.EnableNip16)
+            if (_options.CurrentValue.EnableNip16)
             {
                 var replaceableEvents = evt.Where(e => e.Kind is >= 10000 and < 20000).ToArray();
                 var replacedEvents = new List<RelayNostrEvent>();
@@ -174,7 +174,7 @@ namespace Relay
                 //ephemeral events
                 evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
             }
-            if (_options.Value.EnableNip33)
+            if (_options.CurrentValue.EnableNip33)
             {
                 var replaceableEvents = evt.Where(e => e.Kind is >= 30000 and < 40000).ToArray();
                 var replacedEvents = new List<RelayNostrEvent>();
@@ -264,7 +264,13 @@ namespace Relay
         private async Task<RelayNostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
         {
             await using var context = await _dbContextFactory.CreateDbContextAsync();
-            return await context.Events.Include(e => e.Tags).Where(e => !e.Deleted).Filter<RelayNostrEvent,RelayNostrEventTag>(filter).ToArrayAsync();
+            var result =  await context.Events
+                .Include(e => e.Tags)
+                .Where(e => !e.Deleted)
+                .Filter<RelayNostrEvent,RelayNostrEventTag>(filter)
+                .ToArrayAsync();
+
+            return result.OrderBy(e => e.CreatedAt).ToArray();
         }
 
         public void RemoveFilter(string removedFilter)

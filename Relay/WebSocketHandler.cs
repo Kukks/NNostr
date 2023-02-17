@@ -38,7 +38,7 @@ namespace Relay
             var id = WebSocketWebSocketConnectionManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
             
             if (id is not null && WebSocketWebSocketConnectionManager.Connections.TryRemove(id, out _) &&
-                _stateManager.ConnectionToSubscriptions.TryGetValue(id, out var subscriptions))
+                _stateManager.ConnectionToSubscriptions.TryGetValues(id, out var subscriptions))
             {
                 var orphanedFilters = new List<string>();
                 

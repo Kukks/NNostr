@@ -10,11 +10,11 @@ namespace Relay
         {
             CreateHostBuilder(args).Build().Run();
         }
-
+public const string SettingsOverrideFile = "user-override.json";
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
-                
-                .ConfigureAppConfiguration(builder => builder.AddEnvironmentVariables("NOSTR_"))
+                .ConfigureAppConfiguration(builder => builder.AddEnvironmentVariables("NOSTR_")
+                    .AddJsonFile(SettingsOverrideFile, true, true))
                 .ConfigureWebHostDefaults(webBuilder => { webBuilder.UseStartup<Startup>(); });
     }
 }
