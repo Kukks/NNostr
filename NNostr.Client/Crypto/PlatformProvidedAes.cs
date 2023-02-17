@@ -1,4 +1,5 @@
-﻿using System.Security.Cryptography;
+﻿#if !NETSTANDARD
+using System.Security.Cryptography;
 
 namespace NNostr.Client.Crypto;
 
@@ -25,3 +26,4 @@ internal sealed class PlatformProvidedAes : IAesEncryption
         return ValueTask.FromResult((aes.EncryptCbc(plainText, aes.IV), aes.IV));
     }
 }
+#endif
