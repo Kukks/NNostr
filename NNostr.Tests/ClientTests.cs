@@ -2,6 +2,7 @@ using System;
 using NBitcoin.Secp256k1;
 using NNostr.Client;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -12,7 +13,8 @@ public class ClientTests
     private (ECPrivKey PrivateKey, string PrivateKeyHex, ECXOnlyPubKey PublicKey, string PublicKeyHex) CreateUser(
         string privKeyHex)
     {
-        Context.Instance.TryCreateECPrivKey(Convert.FromHexString(privKeyHex), out var privKey);
+        Assert.True(Context.Instance.TryCreateECPrivKey(Convert.FromHexString(privKeyHex), out var privKey));
+        Debug.Assert(privKey != null, nameof(privKey) + " != null");
         return (privKey, privKeyHex,
             privKey.CreateXOnlyPubKey(), privKey.CreateXOnlyPubKey().ToBytes().AsSpan().ToHex());
     }
@@ -49,6 +51,7 @@ public class ClientTests
     {
         var privKeyHex = "7f4c11a9742721d66e40e321ca50b682c27f7422190c14a187525e69e604836a";
         Assert.True(Context.Instance.TryCreateECPrivKey(Convert.FromHexString(privKeyHex), out var privKey));
+        Debug.Assert(privKey != null, nameof(privKey) + " != null");
         var pubKey = privKey.CreateXOnlyPubKey();
         Assert.Equal("7cef86754ddf07395c289c30fe31219de938c6d707d6b478a8682fc75795e8b9",
             pubKey.ToBytes().AsSpan().ToHex());
