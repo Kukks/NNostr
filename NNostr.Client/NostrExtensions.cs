@@ -6,7 +6,7 @@ namespace NNostr.Client
 {
     public static class NostrExtensions
     {
-        public static string ToJson(this NostrEvent nostrEvent, bool withoutId)
+        public static string ToJson<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, bool withoutId) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag 
         {
             return
                 $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{nostrEvent.Content}\"]";
@@ -17,48 +17,46 @@ namespace NNostr.Client
             return eventJson.ComputeSha256Hash().AsSpan().ToHex();
         }
 
-        public static string ComputeId(this NostrEvent nostrEvent)
+        public static string ComputeId<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent)where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
-            return nostrEvent.ToJson(true).ComputeEventId();
+            return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeEventId();
         }
 
-        public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv)
+        public static string ComputeSignature<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey priv)where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
-            return nostrEvent.ToJson(true).ComputeBIP340Signature(priv);
+            return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
         }
 
-        public static async ValueTask ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0)
+        public static async ValueTask ComputeIdAndSignAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             if (handlenip4 && nostrEvent.Kind == 4)
             {
-                await nostrEvent.EncryptNip04EventAsync(priv);
+                await nostrEvent.EncryptNip04EventAsync<TNostrEvent, TEventTag>(priv);
             }
-            nostrEvent.Id = nostrEvent.ComputeId();
-            nostrEvent.Signature = nostrEvent.ComputeSignature(priv);
+            nostrEvent.Id = nostrEvent.ComputeId<TNostrEvent, TEventTag>();
+            nostrEvent.Signature = nostrEvent.ComputeSignature<TNostrEvent, TEventTag>(priv);
 
             ulong counter = 0;
-            while (nostrEvent.CountPowDifficulty(powDifficulty) < powDifficulty)
+            while (nostrEvent.CountPowDifficulty<TNostrEvent, TEventTag>(powDifficulty) < powDifficulty)
             {
-                nostrEvent.SetTag("nonce", counter.ToString(), powDifficulty.ToString());
+                nostrEvent.SetTag<TNostrEvent, TEventTag>("nonce", counter.ToString(), powDifficulty.ToString());
             }
         }
 
-        public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data)
+        public static void SetTag<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  string identifier, params string[] data) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             nostrEvent.Tags.RemoveAll(tag => tag.TagIdentifier == identifier);
-            nostrEvent.Tags.Add(new NostrEventTag()
+            nostrEvent.Tags.Add(new TEventTag()
             {
                 TagIdentifier = identifier,
-                Data = data.ToList(),
-                EventId = nostrEvent.Id,
-                Event = nostrEvent
+                Data = data.ToList()
             });
         }
 
-        public static int CountPowDifficulty(this NostrEvent @event, int? powDifficulty = null)
+        public static int CountPowDifficulty<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  int? powDifficulty = null) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             var pow = 0;
-            foreach (var c in @event.Id)
+            foreach (var c in nostrEvent.Id)
             {
                 if (c == '0')
                 {
@@ -75,7 +73,7 @@ namespace NNostr.Client
                 return pow;
             }
 
-            var diffAttempt = @event.GetTaggedData("nonce").ElementAtOrDefault(1);
+            var diffAttempt = nostrEvent.GetTaggedData<TNostrEvent, TEventTag>("nonce").ElementAtOrDefault(1);
             if (!string.IsNullOrEmpty(diffAttempt) && int.TryParse(diffAttempt, out var i))
             {
                 return i < powDifficulty ? i : pow;
@@ -85,15 +83,15 @@ namespace NNostr.Client
 
         }
 
-        public static bool Verify(this NostrEvent nostrEvent)
+        public static bool Verify<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
-            var hash = nostrEvent.ToJson(true).ComputeSha256Hash();
+            var hash = nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeSha256Hash();
             if (hash.AsSpan().ToHex() != nostrEvent.Id)
             {
                 return false;
             }
 
-            var pub = nostrEvent.GetPublicKey();
+            var pub = nostrEvent.GetPublicKey<TNostrEvent, TEventTag>();
             if (!SecpSchnorrSignature.TryCreate(Convert.FromHexString(nostrEvent.Signature), out var sig))
             {
                 return false;
@@ -102,7 +100,9 @@ namespace NNostr.Client
             return pub.SigVerifyBIP340(sig, hash);
         }
 
-        public static ECXOnlyPubKey GetPublicKey(this NostrEvent nostrEvent)
+        public static ECXOnlyPubKey GetPublicKey(this NostrEvent nostrEvent) =>
+            GetPublicKey<NostrEvent, NostrEventTag>(nostrEvent);
+        public static ECXOnlyPubKey GetPublicKey<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             return ParsePubKey(nostrEvent.PublicKey);
         }
@@ -136,16 +136,20 @@ namespace NNostr.Client
 
         public static string[] GetTaggedData(this NostrEvent e, string identifier)
         {
+            return GetTaggedData<NostrEvent, NostrEventTag>(e, identifier);
+        }
+        public static string[] GetTaggedData<TNostrEvent, TEventTag>(this TNostrEvent e, string identifier) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
+        {
             return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
         }
 
-        public static IQueryable<NostrEvent> Filter(this IQueryable<NostrEvent> events, NostrSubscriptionFilter filter)
+        public static IQueryable<TNostrEvent> Filter<TNostrEvent, TEventTag>(this IQueryable<TNostrEvent> events, NostrSubscriptionFilter filter) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
             var filterQuery = events;
 
             if (filter.Ids?.Any() is true)
             {
-                filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<NostrEvent>(),
+                filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<TNostrEvent>(),
                     (current, temp) => current.Or(p => p.Id.StartsWith(temp))));
             }
 
@@ -167,7 +171,7 @@ namespace NNostr.Client
             var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
             if (authors?.Any() is true)
             {
-                filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<NostrEvent>(),
+                filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<TNostrEvent>(),
                     (current, temp) => current.Or(p => p.PublicKey.StartsWith(temp))));
             }
 
@@ -190,20 +194,19 @@ namespace NNostr.Client
 
             if (filter.Limit is not null)
             {
-                filterQuery = filterQuery.OrderBy(e => e.CreatedAt).TakeLast(filter.Limit.Value);
+                filterQuery = filterQuery.OrderByDescending(e => e.CreatedAt).Take(filter.Limit.Value);
             }
             return filterQuery;
         }
 
-        public static IEnumerable<NostrEvent> FilterByLimit(this IEnumerable<NostrEvent> events, int? limitFilter)
+        public static IEnumerable<TNostrEvent> FilterByLimit<TNostrEvent, TEventTag>(this IEnumerable<TNostrEvent> events, int? limitFilter) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
             return limitFilter is not null ? events.OrderBy(e => e.CreatedAt).TakeLast(limitFilter.Value) : events;
         }
 
-        public static IEnumerable<NostrEvent> Filter(this IEnumerable<NostrEvent> events, NostrSubscriptionFilter filter)
+        public static IEnumerable<TNostrEvent> Filter<TNostrEvent, TEventTag>(this IEnumerable<TNostrEvent> events, NostrSubscriptionFilter filter) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
             var filterQuery = events;
-
 
             if (filter.Ids?.Any() is true)
             {

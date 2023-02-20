@@ -1,17 +1,7 @@
 ﻿using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace NNostr.Client.Protocols
 {
-    public class NIP05Response
-    {
-        [JsonPropertyName("names")]
-        public Dictionary<string, string> Names { get; set; }
-
-        [JsonPropertyName("relays")]
-        public Dictionary<string, List<string>> Relays { get; set; }
-    }
-
     /// <summary>
     /// https://github.com/nostr-protocol/nips/blob/master/05.md
     /// </summary>
@@ -28,9 +18,27 @@ namespace NNostr.Client.Protocols
             Host = host;
         }
 
-        public Uri Url => new("https://" + Host + "/.well-known/nostr.json?name=" + Username);
+        public Uri Url => new($"{ConstructAddress()}/.well-known/nostr.json?name={Username}");
 
-        public Uri SiteUrl => new("https://" + Host);
+        public Uri SiteUrl => new($"{ConstructAddress()}");
+
+        private string ConstructAddress()
+        {
+            var scheme = "https";
+            var hostPort = Host.Split(':');
+            if (hostPort[0].EndsWith(".onion", StringComparison.InvariantCultureIgnoreCase))
+            {
+                scheme = "http";
+            }
+            if (hostPort.Length > 1)
+            {
+                return $"{scheme}://{hostPort[0]}:{hostPort[1]}";
+            }
+            else
+            {
+                return $"{scheme}://{hostPort[0]}";
+            }
+        }
 
         public static NIP05? Parse(string nip05)
         {
@@ -42,41 +50,59 @@ namespace NNostr.Client.Protocols
             return new NIP05(parts[0], parts[1]);
         }
 
-        public static async Task<NIP05?> Validate(string pubkey, string nip05_str)
+        /// <summary>
+        /// Validate a NIP-05 identifier
+        /// </summary>
+        /// <param name="pubkey">A</param>
+        /// <param name="nip05_str"></param>
+        /// <param name="existingHttpClient"></param>
+        /// <returns>If valid, a NIP-05 object. Otherwise, null.</returns>
+        public static async Task<NIP05?> Validate(string pubkey, string nip05_str, HttpClient? existingHttpClient = null)
         {
             var nip05 = NIP05.Parse(nip05_str);
             if (nip05 == null)
             {
                 return null;
-            } 
+            }
 
             if (nip05.Url == null)
             {
                 return null;
             }
 
-            using var httpClient = new HttpClient();
-            var response = await httpClient.GetAsync(nip05.Url);
-
-            if (!response.IsSuccessStatusCode)
+            var httpClient = existingHttpClient;
+            httpClient ??= new HttpClient();
+            try
             {
-                return null;
+                var response = await httpClient.GetAsync(nip05.Url);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                var stream = await response.Content.ReadAsStreamAsync();
+                var decoded = await JsonSerializer.DeserializeAsync<NIP05Response>(stream);
+
+                if (decoded?.Names == null || !decoded.Names.ContainsKey(nip05.Username))
+                {
+                    return null;
+                }
+
+                if (decoded.Names[nip05.Username] != pubkey)
+                {
+                    return null;
+                }
+
+                return nip05;
             }
-
-            var stream = await response.Content.ReadAsStreamAsync();
-            var decoded = await JsonSerializer.DeserializeAsync<NIP05Response>(stream);
-
-            if (decoded?.Names == null || !decoded.Names.ContainsKey(nip05.Username))
+            finally
             {
-                return null;
+                if (existingHttpClient == null)
+                {
+                    httpClient?.Dispose();
+                }
             }
-
-            if (decoded.Names[nip05.Username] != pubkey)
-            {
-                return null;
-            }
-
-            return nip05;
         }
     }
 }

@@ -6,17 +6,17 @@ namespace Relay
 {
     public class StateManager
     {
-        public MultiValueDictionary<string, string> ConnectionToSubscriptions =
+        public ConcurrentMultiDictionary<string, string> ConnectionToSubscriptions =
             new();
 
-        public MultiValueDictionary<string, string> SubscriptionToFilter =
+        public ConcurrentMultiDictionary<string, string> SubscriptionToFilter =
             new();
 
-        public MultiValueDictionary<string, string> ConnectionToFilter =
+        public ConcurrentMultiDictionary<string, string> ConnectionToFilter =
             new();
 
 
-        public MultiValueDictionary<string, string> FilterToConnection =
+        public ConcurrentMultiDictionary<string, string> FilterToConnection =
             new();
 
         public readonly Channel<(string connectionId, string message)> PendingMessages =
@@ -28,9 +28,8 @@ namespace Relay
             //ugh this can be confusing
             orphanedFilters = new List<string>();
 
-            if (ConnectionToSubscriptions.Remove(connectionId, id))
+            if (ConnectionToSubscriptions.Remove(connectionId, id) && SubscriptionToFilter.TryGetValues(id, out var associatedFilters))
             {
-                SubscriptionToFilter.TryGetValue(id, out var associatedFilters);
                 foreach (var associatedFilter in associatedFilters)
                 {
                     ConnectionToFilter.Remove(connectionId, associatedFilter);

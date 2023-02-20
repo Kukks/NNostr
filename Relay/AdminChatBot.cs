@@ -1,17 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
 using System.Linq;
+using System.Reflection;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using BTCPayServer.Client;
 using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NBitcoin;
-using Newtonsoft.Json.Linq;
 using NNostr.Client;
 using Relay.Data;
 
@@ -20,14 +23,14 @@ namespace Relay;
 public class AdminChatBot : IHostedService
 {
     private readonly NostrEventService _nostrEventService;
-    private readonly IOptions<RelayOptions> _options;
+    private readonly IOptionsMonitor<RelayOptions> _options;
     private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
     private readonly BTCPayServerService _btcPayServerService;
     private readonly ILogger<AdminChatBot> _logger;
 
-    private readonly Channel<NostrEvent> PendingMessages = Channel.CreateUnbounded<NostrEvent>();
+    private readonly Channel<RelayNostrEvent> PendingMessages = Channel.CreateUnbounded<RelayNostrEvent>();
 
-    public AdminChatBot(NostrEventService nostrEventService, IOptions<RelayOptions> options,
+    public AdminChatBot(NostrEventService nostrEventService, IOptionsMonitor<RelayOptions> options,
         IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService, ILogger<AdminChatBot> logger)
     {
         _nostrEventService = nostrEventService;
@@ -38,7 +41,7 @@ public class AdminChatBot : IHostedService
         _nostrEventService.NewEvents += NostrEventServiceOnNewEvents;
     }
 
-    private void NostrEventServiceOnNewEvents(object? sender, NostrEvent[] e)
+    private void NostrEventServiceOnNewEvents(object? sender, RelayNostrEvent[] e)
     {
         foreach (var nostrEvent in e)
         {
@@ -57,14 +60,14 @@ public class AdminChatBot : IHostedService
         }
     }
 
-    private async Task HandleMessage(NostrEvent evt)
+    private async Task HandleMessage(RelayNostrEvent evt)
     {
-        var adminPubKey = _options.Value.AdminPublicKey;
+        var adminPubKey = _options.CurrentValue.AdminPublicKey;
         if (!string.IsNullOrEmpty(adminPubKey) && evt.Kind == 4 && evt.Tags.Any(tag =>
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
-            var content = await evt.DecryptNip04EventAsync(_options.Value.AdminPrivateKey);
+            var content = await evt.DecryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
             //we have a dm!
             if (content.StartsWith("/"))
             {
@@ -117,7 +120,7 @@ public class AdminChatBot : IHostedService
                                 b = new Balance()
                                 {
                                     PublicKey = evt.PublicKey,
-                                    CurrentBalance = _options.Value.PubKeyCost * -1
+                                    CurrentBalance = _options.CurrentValue.PubKeyCost * -1
                                 };
                                 await context.Balances.AddAsync(b);
                             }
@@ -132,35 +135,7 @@ public class AdminChatBot : IHostedService
 
                             await context.BalanceTopups.AddAsync(topup);
                         }
-
-                        var eventReply = new NostrEvent()
-                        {
-                            Content = $"Topup here: {i.CheckoutLink}",
-                            Kind = 4,
-                            PublicKey = _options.Value.AdminPublicKey,
-                            Tags = new List<NostrEventTag>()
-                            {
-                                new()
-                                {
-                                    TagIdentifier = "p",
-                                    Data = new List<string>()
-                                    {
-                                        evt.PublicKey
-                                    }
-                                },
-                                new()
-                                {
-                                    TagIdentifier = "e",
-                                    Data = new List<string>()
-                                    {
-                                        evt.Id
-                                    }
-                                }
-                            }
-                        };
-                        await eventReply.EncryptNip04EventAsync(_options.Value.AdminPrivateKey);
-                        eventReply.Signature = eventReply.ComputeSignature(_options.Value.AdminPrivateKey);
-                        await _nostrEventService.AddEvent(new []{eventReply});
+                        await ReplyToEvent(evt, $"Topup here: {i.CheckoutLink}");
                         break;
                     }
 
@@ -168,40 +143,104 @@ public class AdminChatBot : IHostedService
                     {
                         await using var context = await _dbContextFactory.CreateDbContextAsync();
                         var b = await context.Balances.FindAsync(evt.PublicKey);
-                        var eventReply = new NostrEvent()
+                        await ReplyToEvent(evt, $"Your balance is: {b?.CurrentBalance ?? _options.CurrentValue.PubKeyCost * -1}.");
+                        break;
+                    }
+                    case "admin" when evt.PublicKey == adminPubKey:
+                    {
+                        switch (args.FirstOrDefault()?.ToLowerInvariant())
                         {
-                            Content = $"Your balance is: {b?.CurrentBalance ?? _options.Value.PubKeyCost * -1}.",
-                            Kind = 4,
-                            PublicKey = _options.Value.AdminPublicKey,
-                            Tags = new List<NostrEventTag>()
-                            {
-                                new()
+                            case "config":
+                                await ReplyToEvent(evt, JsonSerializer.Serialize(_options.CurrentValue));
+                                break;
+                            case "factory-reset":
+                                File.Delete(Program.SettingsOverrideFile);
+                                await ReplyToEvent(evt, "Factory reset complete.");
+                                break;
+                            case "update":
+
+                                var property = args.ElementAtOrDefault(1);
+                                if (_writableOptions.Value.TryGetValue(property, out var pInfo))
                                 {
-                                    TagIdentifier = "p",
-                                    Data = new List<string>()
+                                    var propertyValue = args.ElementAtOrDefault(2);
+                                 
+                                    JsonObject? newOverride = new JsonObject();
+                                    if (File.Exists(Program.SettingsOverrideFile))
                                     {
-                                        evt.PublicKey
+                                        var currentOverride = await File.ReadAllTextAsync(Program.SettingsOverrideFile);
+                                        newOverride = JsonSerializer.Deserialize<JsonObject>(currentOverride)?? new JsonObject();
                                     }
-                                },
-                                new()
-                                {
-                                    TagIdentifier = "e",
-                                    Data = new List<string>()
+
+                                    if (propertyValue is null)
                                     {
-                                        evt.Id
+                                        newOverride.Remove(property);
                                     }
+                                    else
+                                    {
+                                        
+                                        var converter = TypeDescriptor.GetConverter(pInfo);
+                                        var convertedObject = converter.ConvertFromString(propertyValue);
+                                        newOverride[property] = JsonValue.Create(convertedObject);
+                                    }
+                                    await File.WriteAllTextAsync(Program.SettingsOverrideFile, JsonSerializer.Serialize(newOverride));
+                                    
+                                    await ReplyToEvent(evt, "Config updated");
                                 }
-                            }
-                        };
-                        await eventReply.ComputeIdAndSignAsync(_options.Value.AdminPrivateKey);
-                        _logger.LogInformation($"Sending reply {eventReply.Id} to {evt.PublicKey} ");
-                        await _nostrEventService.AddEvent(new []{eventReply});
+
+                                break;
+                                
+                        }
                         break;
                     }
                 }
             }
         }
     }
+    
+    private Lazy<Dictionary<string, PropertyInfo>> _writableOptions = new(() =>
+    {
+        var props = typeof(RelayOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Where(prop => prop.GetSetMethod() is not null).ToDictionary(prop => prop.Name.ToLowerInvariant());
+        return props;
+    });
+
+    private async Task ReplyToEvent(RelayNostrEvent evt, string content)
+    {
+        var reply = new RelayNostrEvent()
+        {
+            Content = content,
+            Kind = 4,
+            PublicKey = _options.CurrentValue.AdminPublicKey,
+            Tags = new List<RelayNostrEventTag>()
+            {
+                new()
+                {
+                    TagIdentifier = "p",
+                    Data = new List<string>()
+                    {
+                        evt.PublicKey
+                    }
+                },
+                new()
+                {
+                    TagIdentifier = "e",
+                    Data = new List<string>()
+                    {
+                        evt.Id
+                    }
+                }
+            }
+        };
+        await AddEvent(reply);
+    }
+    private async Task AddEvent(RelayNostrEvent eventReply)
+    {
+        await eventReply.EncryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
+        eventReply.Signature =
+            eventReply.ComputeSignature<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
+        await _nostrEventService.AddEvent(new[] {eventReply});
+    }
+
 
     public Task StartAsync(CancellationToken cancellationToken)
     {

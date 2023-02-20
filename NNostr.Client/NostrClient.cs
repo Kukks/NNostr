@@ -93,7 +93,7 @@ namespace NNostr.Client
                     var subscriptionId = json[1].GetString();
                     var evt = json[2].Deserialize<NostrEvent>();
 
-                    if (evt?.Verify() is true)
+                    if (evt?.Verify<NostrEvent, NostrEventTag>() is true)
                     {
                         EventsReceived?.Invoke(this, (subscriptionId, new[] {evt}));
                     }

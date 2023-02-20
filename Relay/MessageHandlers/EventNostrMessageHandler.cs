@@ -17,7 +17,7 @@ namespace Relay
         private readonly NostrEventService _nostrEventService;
         private readonly ILogger<EventNostrMessageHandler> _logger;
         private readonly StateManager _stateManager;
-        private readonly IOptions<RelayOptions> _options;
+        private readonly IOptionsMonitor<RelayOptions> _options;
         private const string PREFIX = "EVENT";
 
         private readonly Channel<(string, string)> PendingMessages = Channel.CreateUnbounded<(string, string)>();
@@ -25,12 +25,13 @@ namespace Relay
         public EventNostrMessageHandler(NostrEventService nostrEventService,
             ILogger<EventNostrMessageHandler> logger,
             StateManager stateManager,
-            IOptions<RelayOptions> options)
+            IOptionsMonitor<RelayOptions> options)
         {
             _nostrEventService = nostrEventService;
             _logger = logger;
             _stateManager = stateManager;
             _options = options;
+            
         }
 
         private async Task ProcessEventMessages(CancellationToken cancellationToken)
@@ -43,20 +44,20 @@ namespace Relay
                     {
                         _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
                         var json = JsonDocument.Parse(evt.Item2).RootElement;
-                        var e = JsonSerializer.Deserialize<NostrEvent>(json[1].GetRawText());
-                        if (_options.Value.Nip13Difficulty > 0)
+                        var e = JsonSerializer.Deserialize<RelayNostrEvent>(json[1].GetRawText());
+                        if (_options.CurrentValue.Nip13Difficulty > 0)
                         {
-                            var count = e.CountPowDifficulty(_options.Value.Nip13Difficulty);
+                            var count = e.CountPowDifficulty<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.Nip13Difficulty);
 
-                            if (count < _options.Value.Nip13Difficulty)
+                            if (count < _options.CurrentValue.Nip13Difficulty)
                             {
                                 
-                                WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.Value.Nip13Difficulty}");
+                                WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.CurrentValue.Nip13Difficulty}");
                             }
-                        }else if (e.Verify())
+                        }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
                         {
                             var added = await _nostrEventService.AddEvent(new[] {e});
-                            if (_options.Value.EnableNip20)
+                            if (_options.CurrentValue.EnableNip20)
                             {
                                 foreach (var tuple in added)
                                 {
@@ -71,12 +72,12 @@ namespace Relay
                                         JsonSerializer.Serialize(new[]
                                         {
                                             "NOTICE",
-                                            $"Event {tuple.eventId} was not added to this relay. This relay charges {_options.Value.PubKeyCost} for new pubkey registrations and {_options.Value.EventCost} per event {(_options.Value.EventCostPerByte ? "byte" : "")}. Send a message to {_options.Value.AdminPublicKey} for more info "
+                                            $"Event {tuple.eventId} was not added to this relay. This relay charges {_options.CurrentValue.PubKeyCost} for new pubkey registrations and {_options.CurrentValue.EventCost} per event {(_options.CurrentValue.EventCostPerByte ? "byte" : "")}. Send a message to {_options.CurrentValue.AdminPublicKey} for more info "
                                         })));
                                 }
                             }
                         }
-                        else if (_options.Value.EnableNip20)
+                        else if (_options.CurrentValue.EnableNip20)
                         {
                             WriteOkMessage(evt.Item1, e.Id, false, "invalid: event could not be verified");
                         }

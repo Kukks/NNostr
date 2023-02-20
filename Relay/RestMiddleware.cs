@@ -15,11 +15,11 @@ namespace Relay;
 
 public class RestMiddleware : IMiddleware
 {
-    private readonly IOptions<RelayOptions> _options;
+    private readonly IOptionsMonitor<RelayOptions> _options;
     private readonly NostrEventService _nostrEventService;
     private readonly BTCPayServerService _btcPayServerService;
 
-    public RestMiddleware(IOptions<RelayOptions> options, NostrEventService nostrEventService, BTCPayServerService btcPayServerService)
+    public RestMiddleware(IOptionsMonitor<RelayOptions> options, NostrEventService nostrEventService, BTCPayServerService btcPayServerService)
     {
         _options = options;
         _nostrEventService = nostrEventService;
@@ -28,7 +28,7 @@ public class RestMiddleware : IMiddleware
 
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
-        if (_options.Value.EnableNip11 && !context.WebSockets.IsWebSocketRequest &&
+        if (_options.CurrentValue.EnableNip11 && !context.WebSockets.IsWebSocketRequest &&
             context.Request.Headers.Accept.Any(s =>
                 s.Equals("application/json", StringComparison.InvariantCultureIgnoreCase)))
         {
