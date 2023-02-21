@@ -16,17 +16,17 @@ namespace NNostr.Client
         {
             return eventJson.ComputeSha256Hash().AsSpan().ToHex();
         }
-
+        public static string ComputeId(this NostrEvent nostrEvent) => nostrEvent.ComputeId<NostrEvent, NostrEventTag>();
         public static string ComputeId<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent)where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
             return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeEventId();
         }
-
+        public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv) => nostrEvent.ComputeSignature<NostrEvent, NostrEventTag>(priv);
         public static string ComputeSignature<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey priv)where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
             return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
         }
-
+        public static async ValueTask ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0) => await nostrEvent.ComputeIdAndSignAsync<NostrEvent, NostrEventTag>(priv, handlenip4, powDifficulty);
         public static async ValueTask ComputeIdAndSignAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             if (handlenip4 && nostrEvent.Kind == 4)
@@ -42,7 +42,7 @@ namespace NNostr.Client
                 nostrEvent.SetTag<TNostrEvent, TEventTag>("nonce", counter.ToString(), powDifficulty.ToString());
             }
         }
-
+        public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data) => nostrEvent.SetTag<NostrEvent, NostrEventTag>(identifier, data);
         public static void SetTag<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  string identifier, params string[] data) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             nostrEvent.Tags.RemoveAll(tag => tag.TagIdentifier == identifier);
@@ -52,7 +52,7 @@ namespace NNostr.Client
                 Data = data.ToList()
             });
         }
-
+public static int CountPowDifficulty(this NostrEvent nostrEvent, int? powDifficulty = null) => nostrEvent.CountPowDifficulty<NostrEvent, NostrEventTag>(powDifficulty);
         public static int CountPowDifficulty<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  int? powDifficulty = null) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             var pow = 0;
@@ -83,6 +83,7 @@ namespace NNostr.Client
 
         }
 
+        public static bool Verify(this NostrEvent nostrEvent) => Verify<NostrEvent, NostrEventTag>(nostrEvent);
         public static bool Verify<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
             var hash = nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeSha256Hash();
