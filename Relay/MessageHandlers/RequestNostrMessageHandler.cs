@@ -43,7 +43,7 @@ namespace Relay
                 filters.Add(JsonSerializer.Deserialize<NostrSubscriptionFilter>(json[i].GetRawText()));
             }
 
-            var results = new List<RelayNostrEvent[]>();
+            var results = new List<NostrEventsMatched>();
             _stateManager.SubscriptionToFilter.TryGetValues(id, out var existingFilters);
             _stateManager.SubscriptionToFilter.Remove(id);
 
@@ -51,17 +51,16 @@ namespace Relay
             foreach (var filter in filters)
             {
                 var x = await _nostrEventService.AddFilter(filter);
-                results.Add(x.matchedEvents);
-                newids.Add(x.filterId);
-                if (!_stateManager.ConnectionToFilter.Contains(connectionId, x.filterId))
-                    _stateManager.ConnectionToFilter.Add(connectionId, x.filterId);
-                if (!_stateManager.FilterToConnection.Contains(x.filterId, connectionId))
-                    _stateManager.FilterToConnection.Add(x.filterId, connectionId);
-                _stateManager.SubscriptionToFilter.Add(id, x.filterId);
+                results.Add(x);
+                newids.Add(x.FilterId);
+                if (!_stateManager.ConnectionToFilter.Contains(connectionId, x.FilterId))
+                    _stateManager.ConnectionToFilter.Add(connectionId, x.FilterId);
+                if (!_stateManager.FilterToConnection.Contains(x.FilterId, connectionId))
+                    _stateManager.FilterToConnection.Add(x.FilterId, connectionId);
+                _stateManager.SubscriptionToFilter.Add(id, x.FilterId);
             }
 
             _stateManager.ConnectionToSubscriptions.Add(connectionId, id);
-
 
             var removedFilters = existingFilters?.Except(newids);
             if (removedFilters is not null)
@@ -74,10 +73,7 @@ namespace Relay
                     }
                 }
 
-            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
-                JsonSerializer.Serialize(results.Aggregate(
-                    (events, nostrEvents) =>
-                        events.Union(nostrEvents).ToArray()))));
+            results.ForEach(matched => _nostrEventService.InvokeMatched(matched) );
         }
     }
 }

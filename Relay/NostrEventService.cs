@@ -215,8 +215,7 @@ namespace Relay
                         matchedList.Where(e => !removedEvents.Contains(e.Id))
                             .FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit).ToArray());
                 }
-
-                EventsMatched?.Invoke(this, new NostrEventsMatched()
+                InvokeMatched(new NostrEventsMatched()
                 {
                     Events = matchedList,
                     FilterId = nostrSubscriptionFilter.Key
@@ -237,11 +236,20 @@ namespace Relay
             return eventResults;
         }
 
-        public async Task<(string filterId, RelayNostrEvent[] matchedEvents)> AddFilter(NostrSubscriptionFilter filter)
+        public async Task<NostrEventsMatched> AddFilter(NostrSubscriptionFilter filter)
         {
             var id = JsonSerializer.Serialize(filter).ComputeSha256Hash().AsSpan().ToHex();
             ActiveFilters.TryAdd(id, filter);
-            return (id, await CachedFilterResults.GetOrAddAsync(id, GetFromDB));
+            return new NostrEventsMatched()
+            {
+                Events = await CachedFilterResults.GetOrAddAsync(id, GetFromDB),
+                FilterId = id
+            };
+        }
+
+        public void InvokeMatched(NostrEventsMatched eventsMatched)
+        {
+            EventsMatched?.Invoke(this, eventsMatched);
         }
 
         public async Task<RelayNostrEvent[]> FetchData(params NostrSubscriptionFilter[] filter)

@@ -210,6 +210,7 @@ public class AdminChatBot : IHostedService
         {
             Content = content,
             Kind = 4,
+            CreatedAt = DateTimeOffset.UtcNow,
             PublicKey = _options.CurrentValue.AdminPublicKey,
             Tags = new List<RelayNostrEventTag>()
             {

@@ -91,6 +91,11 @@ namespace Relay
                         {
                             await conn.SendMessageAsync(evt.Item2, cancellationToken);
                         }
+                        else
+                        {
+                            _logger.LogWarning(
+                                $"Had to send a message to a connection that no longer exists {evt.Item1}");
+                        }
                     }
                     catch when (cancellationToken.IsCancellationRequested)
                     {
