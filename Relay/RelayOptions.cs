@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using NBitcoin.DataEncoders;
 using NBitcoin.Secp256k1;
@@ -60,4 +61,15 @@ public class RelayOptions
     public TimeSpan? Nip22BackwardLimit { get; set; } = TimeSpan.FromDays(1);
 
     public TimeSpan? Nip22ForwardLimit { get; set; } = TimeSpan.FromMinutes(15);
+
+    public bool Validate(out List<string> errors)
+    {
+        errors = new List<string>();
+        if (AdminPrivateKey is null)
+        {
+            errors.Add("AdminKey is null or invalid");
+        }
+
+        return errors.Count == 0;
+    }
 }

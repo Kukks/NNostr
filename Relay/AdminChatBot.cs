@@ -149,7 +149,7 @@ public class AdminChatBot : IHostedService
                         await ReplyToEvent(evt, $"Your balance is: {b?.CurrentBalance ?? _options.CurrentValue.PubKeyCost * -1}.");
                         break;
                     }
-                    case "admin" when evt.PublicKey == adminPubKey || true:
+                    case "admin" when evt.PublicKey == adminPubKey:
                     {
                         switch (args.FirstOrDefault()?.ToLowerInvariant())
                         {
@@ -161,14 +161,24 @@ public class AdminChatBot : IHostedService
                                 await ReplyToEvent(evt, "Factory reset complete.");
                                 break;
                             case "update":
-
-                                //find where json starts in a string and save it as a seperate string;
-                                //  
-                                var json = content.Substring(content.IndexOf('{'));
-                                var newOverride =  JsonSerializer.Deserialize<RelayOptions>(json);
-                                await File.WriteAllTextAsync(Program.SettingsOverrideFile, JsonSerializer.Serialize(newOverride));
+                                try
+                                {
+                                    var json = content.Substring(content.IndexOf('{'));
+                                    var newOverride =  JsonSerializer.Deserialize<RelayOptions>(json);
+                                    if (!newOverride.Validate(out var errors))
+                                    {
+                                        await ReplyToEvent(evt, "config was invalid. Errors: " + string.Join(Environment.NewLine, errors));
+                                    }
+                                    await File.WriteAllTextAsync(Program.SettingsOverrideFile, JsonSerializer.Serialize(newOverride));
                                     
-                                await ReplyToEvent(evt, "Config updated");
+                                    await ReplyToEvent(evt, "Config updated.");
+                                }
+                                catch (Exception e)
+                                {
+                                    await ReplyToEvent(evt,
+                                        "config was invalid or could not be parsed. the command is /admin update {json} where {json} is the json format from /admin config.");
+                                }
+                                
                                 
                                 break;
                                 

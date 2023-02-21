@@ -5,6 +5,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using LNURL;
+using NBitcoin.DataEncoders;
+using NNostr.Client;
 using Xunit;
 
 namespace NNostr.Tests
@@ -25,5 +28,34 @@ namespace NNostr.Tests
                 x => x.ShouldNotBeNull()    
             );
         }
+    }
+    public class Nip19Tests
+    {
+        [Fact]
+        public async Task CanHandleNip19()
+        {
+          var npub = "npub10elfcs4fr0l0r8af98jlmgdh9c8tcxjvz9qkw038js35mp4dma8qzvjptg";
+            var nsec = "nsec1vl029mgpspedva04g90vltkh6fvh240zqtv9k0t9af8935ke9laqsnlfe5";
+            
+            Assert.Equal("67dea2ed018072d675f5415ecfaed7d2597555e202d85b3d65ea4e58d2d92ffa",
+                nsec.FromNIP19Nsec().ToHex());
+            
+            Assert.Equal("7e7e9c42a91bfef19fa929e5fda1b72e0ebc1a4c1141673e2794234d86addf4e",
+                npub.FromNIP19Npub().ToHex());
+            
+            Assert.Equal(npub, npub.FromNIP19Npub().ToNIP19());
+            Assert.Equal(nsec, nsec.FromNIP19Nsec().ToNIP19());
+
+            var nprofile =
+                "nprofile1qqsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8gpp4mhxue69uhhytnc9e3k7mgpz4mhxue69uhkg6nzv9ejuumpv34kytnrdaksjlyr9p";
+
+            var note = Assert.IsType<NIP19.NosteProfileNote>(nprofile.FromNIP19Note());
+            Assert.Equal("3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d", note.PubKey);
+            Assert.Equal(2, note.Relays.Length);
+            Assert.True(note.Relays.Contains("wss://r.x.com"));
+            Assert.True(note.Relays.Contains("wss://djbas.sadkb.com"));
+
+        }
+        
     }
 }

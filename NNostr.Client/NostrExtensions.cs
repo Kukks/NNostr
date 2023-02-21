@@ -109,12 +109,20 @@ namespace NNostr.Client
 
         public static ECPrivKey ParseKey(string key)
         {
-            return ECPrivKey.Create(Convert.FromHexString(key));
+            return ParseKey(Convert.FromHexString(key));
+        }
+        public static ECPrivKey ParseKey(byte[] key)
+        {
+            return ECPrivKey.Create(key);
         }
 
         public static ECXOnlyPubKey ParsePubKey(string key)
         {
-            return Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(key));
+            return ParsePubKey(Convert.FromHexString(key));
+        }
+        public static ECXOnlyPubKey ParsePubKey(byte[] key)
+        {
+            return Context.Instance.CreateXOnlyPubKey(key);
         }
 
         public static string ToHex(this ECPrivKey key)
@@ -122,6 +130,12 @@ namespace NNostr.Client
             Span<byte> output = stackalloc byte[32];
             key.WriteToSpan(output);
             return output.ToHex();
+        }
+        public static  byte[]  ToBytes(this ECPrivKey key)
+        {
+            Span<byte> output = stackalloc byte[32];
+            key.WriteToSpan(output);
+            return output.ToArray();
         }
 
         public static string ToHex(this ECXOnlyPubKey key)
