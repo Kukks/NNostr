@@ -222,12 +222,6 @@ namespace Relay
                 });
             }
             eventResults.AddRange(evtsToSave.Select(@event => (@event.Id, true, "")));
-            // await context.EventTags.AddRangeAsync(evtsToSave.SelectMany(e => e.Tags.Select(tag =>
-            // {
-            //     tag.EventId = e.Id;
-            //     tag.Event = e;
-            //     return tag;
-            // })));
             await context.Events.AddRangeAsync(
                 evtsToSave.Select(@event => 
                     JsonSerializer.Deserialize<RelayNostrEvent>( JsonSerializer.Serialize(@event)))!);

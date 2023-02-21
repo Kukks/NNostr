@@ -22,13 +22,7 @@
       "applicationUrl": "https://localhost:5001;http://localhost:5000",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "NOSTR_CONNECTIONSTRINGS__RelayDatabase": "User ID=postgres;Host=127.0.0.1;Port=65466;Database=nostrrelay;persistsecurityinfo=True",
-        "NOSTR_AdminKey": "795f7afb6a738de7fa01e77140292b65abcd262f3af160139785fa4fa98c1b07",
-        "NOSTR_BTCPayServerUri" : "https://localhost:14142",
-        "NOSTR_BTCPayServerApiKey" : "aa4e99c6d9541d93ce5923986481a8c999389030",
-        "NOSTR_BTCPayServerStoreId": "8epw2RDUKmKaJpvfqJQtpJNYgMz1EvsEDic87ViUiW6L",
-        "NOSTR_EventCost": "1",
-        "NOSTR_PubKeyCost": "10"
+        "NOSTR_CONNECTIONSTRINGS__RelayDatabase": "User ID=postgres;Host=127.0.0.1;Port=65466;Database=nostrrelay;persistsecurityinfo=True"
       }
     }
   }

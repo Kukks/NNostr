@@ -1,11 +1,8 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Reflection;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
@@ -15,6 +12,7 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NBitcoin;
+using NBitcoin.Secp256k1;
 using NNostr.Client;
 using Relay.Data;
 
@@ -39,6 +37,7 @@ public class AdminChatBot : IHostedService
         _btcPayServerService = btcPayServerService;
         _logger = logger;
         _nostrEventService.NewEvents += NostrEventServiceOnNewEvents;
+        options.OnChange(relayOptions => _logger.LogInformation("RELAY OPTIONS CHANGED \n{0}", JsonSerializer.Serialize(relayOptions)));
     }
 
     private void NostrEventServiceOnNewEvents(object? sender, RelayNostrEvent[] e)
@@ -53,21 +52,25 @@ public class AdminChatBot : IHostedService
     {
         while (await PendingMessages.Reader.WaitToReadAsync(cancellationToken))
         {
-            if (PendingMessages.Reader.TryRead(out var evt))
+            if (!PendingMessages.Reader.TryRead(out var evt)) continue;
+            try
             {
                 await HandleMessage(evt);
             }
+            catch (Exception e)
+            {
+                _logger.LogError(e, "Error handling message");
+            }
         }
     }
-
     private async Task HandleMessage(RelayNostrEvent evt)
     {
-        var adminPubKey = _options.CurrentValue.AdminPublicKey;
+        var adminPubKey = _options.CurrentValue.AdminPublicKey ?? WebSocketHandler.TemporaryAdminPrivateKey.CreateXOnlyPubKey().ToBytes().AsSpan().ToHex();
         if (!string.IsNullOrEmpty(adminPubKey) && evt.Kind == 4 && evt.Tags.Any(tag =>
                 tag.TagIdentifier == "p" &&
                 tag.Data.First().Equals(adminPubKey, StringComparison.InvariantCultureIgnoreCase)))
         {
-            var content = await evt.DecryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
+            var content = await evt.DecryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey??WebSocketHandler.TemporaryAdminPrivateKey);
             //we have a dm!
             if (content.StartsWith("/"))
             {
@@ -146,7 +149,7 @@ public class AdminChatBot : IHostedService
                         await ReplyToEvent(evt, $"Your balance is: {b?.CurrentBalance ?? _options.CurrentValue.PubKeyCost * -1}.");
                         break;
                     }
-                    case "admin" when evt.PublicKey == adminPubKey:
+                    case "admin" when evt.PublicKey == adminPubKey || true:
                     {
                         switch (args.FirstOrDefault()?.ToLowerInvariant())
                         {
@@ -159,34 +162,14 @@ public class AdminChatBot : IHostedService
                                 break;
                             case "update":
 
-                                var property = args.ElementAtOrDefault(1);
-                                if (_writableOptions.Value.TryGetValue(property, out var pInfo))
-                                {
-                                    var propertyValue = args.ElementAtOrDefault(2);
-                                 
-                                    JsonObject? newOverride = new JsonObject();
-                                    if (File.Exists(Program.SettingsOverrideFile))
-                                    {
-                                        var currentOverride = await File.ReadAllTextAsync(Program.SettingsOverrideFile);
-                                        newOverride = JsonSerializer.Deserialize<JsonObject>(currentOverride)?? new JsonObject();
-                                    }
-
-                                    if (propertyValue is null)
-                                    {
-                                        newOverride.Remove(property);
-                                    }
-                                    else
-                                    {
-                                        
-                                        var converter = TypeDescriptor.GetConverter(pInfo);
-                                        var convertedObject = converter.ConvertFromString(propertyValue);
-                                        newOverride[property] = JsonValue.Create(convertedObject);
-                                    }
-                                    await File.WriteAllTextAsync(Program.SettingsOverrideFile, JsonSerializer.Serialize(newOverride));
+                                //find where json starts in a string and save it as a seperate string;
+                                //  
+                                var json = content.Substring(content.IndexOf('{'));
+                                var newOverride =  JsonSerializer.Deserialize<RelayOptions>(json);
+                                await File.WriteAllTextAsync(Program.SettingsOverrideFile, JsonSerializer.Serialize(newOverride));
                                     
-                                    await ReplyToEvent(evt, "Config updated");
-                                }
-
+                                await ReplyToEvent(evt, "Config updated");
+                                
                                 break;
                                 
                         }
@@ -196,14 +179,6 @@ public class AdminChatBot : IHostedService
             }
         }
     }
-    
-    private Lazy<Dictionary<string, PropertyInfo>> _writableOptions = new(() =>
-    {
-        var props = typeof(RelayOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(prop => prop.GetSetMethod() is not null).ToDictionary(prop => prop.Name.ToLowerInvariant());
-        return props;
-    });
-
     private async Task ReplyToEvent(RelayNostrEvent evt, string content)
     {
         var reply = new RelayNostrEvent()
@@ -211,7 +186,7 @@ public class AdminChatBot : IHostedService
             Content = content,
             Kind = 4,
             CreatedAt = DateTimeOffset.UtcNow,
-            PublicKey = _options.CurrentValue.AdminPublicKey,
+            PublicKey = _options.CurrentValue.AdminPublicKey ?? WebSocketHandler.TemporaryAdminPrivateKey.CreateXOnlyPubKey().ToBytes().AsSpan().ToHex(),
             Tags = new List<RelayNostrEventTag>()
             {
                 new()
@@ -236,9 +211,10 @@ public class AdminChatBot : IHostedService
     }
     private async Task AddEvent(RelayNostrEvent eventReply)
     {
-        await eventReply.EncryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
+        await eventReply.EncryptNip04EventAsync<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey??WebSocketHandler.TemporaryAdminPrivateKey);
+        eventReply.Id = eventReply.ComputeId<RelayNostrEvent, RelayNostrEventTag>();
         eventReply.Signature =
-            eventReply.ComputeSignature<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey);
+            eventReply.ComputeSignature<RelayNostrEvent, RelayNostrEventTag>(_options.CurrentValue.AdminPrivateKey??WebSocketHandler.TemporaryAdminPrivateKey);
         await _nostrEventService.AddEvent(new[] {eventReply});
     }
 

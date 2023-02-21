@@ -1,9 +1,11 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:6.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:7.0 AS base
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-FROM mcr.microsoft.com/dotnet/sdk:6.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:7.0 AS build
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 WORKDIR /src
 COPY ["Relay/Relay.csproj", "Relay/"]
 COPY ["NNostr.Client/NNostr.Client.csproj", "NNostr.Client/"]
@@ -17,5 +19,8 @@ RUN dotnet publish "Relay.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
+WORKDIR /datadir
+VOLUME /datadir
+ENV NNOSTR_USER_OVERRIDE=/datadir/user-override.json
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Relay.dll"]
