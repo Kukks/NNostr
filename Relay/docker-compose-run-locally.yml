@@ -11,6 +11,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://0.0.0.0:80"
+      NOSTR_USERSETTINGS_FILEPATH: "/app/relaysettings.json"
       NOSTR_CONNECTIONSTRINGS__RelayDatabase: "User ID=postgres;Host=postgres;Port=5432;Database=nostrrelay"
     ports:
       - "5000:80"

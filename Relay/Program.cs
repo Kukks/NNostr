@@ -1,3 +1,4 @@
+using System;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
@@ -10,7 +11,9 @@ namespace Relay
         {
             CreateHostBuilder(args).Build().Run();
         }
-public const string SettingsOverrideFile = "user-override.json";
+
+        public static readonly string SettingsOverrideFile = Environment.GetEnvironmentVariable("NOSTR_USER_OVERRIDE")??"user-override.json";
+
         public static IHostBuilder CreateHostBuilder(string[] args) =>
             Host.CreateDefaultBuilder(args)
                 .ConfigureAppConfiguration(builder => builder.AddEnvironmentVariables("NOSTR_")
