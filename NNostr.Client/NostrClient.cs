@@ -10,6 +10,7 @@ namespace NNostr.Client
         protected ClientWebSocket? WebSocket;
         
         private readonly Uri _relay;
+        private readonly Action<ClientWebSocket>? _websocketConfigure;
         private CancellationTokenSource? _cts;
         private readonly CancellationTokenSource _messageCts = new();
 
@@ -19,9 +20,10 @@ namespace NNostr.Client
         private readonly Channel<string> _pendingOutgoingMessages = 
             Channel.CreateUnbounded<string>(new() { SingleReader = true });
 
-        public NostrClient(Uri relay)
+        public NostrClient(Uri relay, Action<ClientWebSocket>? websocketConfigure = null)
         {
             _relay = relay;
+            _websocketConfigure = websocketConfigure;
             _ = ProcessChannel(_pendingIncomingMessages, HandleIncomingMessage, _messageCts.Token);
             _ = ProcessChannel(_pendingOutgoingMessages, HandleOutgoingMessage, _messageCts.Token);
         }
@@ -191,6 +193,7 @@ namespace NNostr.Client
             WebSocket?.Dispose();
             WebSocket = new ClientWebSocket();
             WebSocket.Options.SetRequestHeader("origin", _relay.ToString());
+            _websocketConfigure?.Invoke(WebSocket);
             using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
             await WebSocket.ConnectAsync(_relay, cts.Token);
             await WaitUntilConnected(cts.Token);
