@@ -35,6 +35,7 @@ namespace NNostr.Client
         }
 
         public EventHandler<string>? MessageReceived;
+        public EventHandler<string>? InvalidMessageReceived;
         public EventHandler<string>? NoticeReceived;
         public EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
         public EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
@@ -88,7 +89,16 @@ namespace NNostr.Client
 
         private Task<bool> HandleIncomingMessage(string message, CancellationToken token)
         {
-            var json = JsonDocument.Parse(message.Trim('\0')).RootElement;
+            JsonElement json;
+            try
+            {
+                json = JsonDocument.Parse(message.Trim('\0')).RootElement;
+            }
+            catch (Exception)
+            {
+                InvalidMessageReceived?.Invoke(this, message);
+                return Task.FromResult(true);
+            }
             switch (json[0].GetString().ToLowerInvariant())
             {
                 case "event":
