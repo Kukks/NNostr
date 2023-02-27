@@ -88,7 +88,7 @@ namespace NNostr.Client
 
         private Task<bool> HandleIncomingMessage(string message, CancellationToken token)
         {
-            var json = JsonDocument.Parse(message).RootElement;
+            var json = JsonDocument.Parse(message.Trim('\0')).RootElement;
             switch (json[0].GetString().ToLowerInvariant())
             {
                 case "event":
