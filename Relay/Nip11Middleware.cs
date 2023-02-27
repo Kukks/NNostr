@@ -57,8 +57,13 @@ public class Nip11Middleware : IMiddleware
                 nips.Add(22);
             }
 
+            
             var response = new Nip11Response()
             {
+                Contact = _options.CurrentValue.RelayAlternativeContact,
+                Name = _options.CurrentValue.RelayName,
+                Description = _options.CurrentValue.RelayDescription,
+                PubKey = _options.CurrentValue.AdminPublicKey,
                 SupportedNips = nips.ToArray(),
                 Software = "https://github.com/Kukks/NNostr",
                 Version = typeof(Startup).GetTypeInfo().Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()
@@ -77,12 +82,12 @@ public class Nip11Middleware : IMiddleware
 
     public class Nip11Response
     {
-        [JsonPropertyName("name")] public string Name { get; set; }
-        [JsonPropertyName("description")] public string Description { get; set; }
-        [JsonPropertyName("pubkey")] public string PubKey { get; set; }
-        [JsonPropertyName("contact")] public string Contact { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("name")] public string? Name { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("description")] public string? Description { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("pubkey")] public string? PubKey { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("contact")] public string? Contact { get; set; }
         [JsonPropertyName("supported_nips")] public int[] SupportedNips { get; set; }
-        [JsonPropertyName("software")] public string Software { get; set; }
-        [JsonPropertyName("version")] public string Version { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("software")] public string Software { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("version")] public string Version { get; set; }
     }
 }

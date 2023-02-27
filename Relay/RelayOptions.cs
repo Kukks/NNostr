@@ -18,7 +18,7 @@ public class RelayOptions
     //cost for a new pubkey to post events to relay
     public long PubKeyCost { get; set; } = 0;
 
-    //priv key of admin bot
+    //priv key of relay admin
     public string? AdminKey { get; set; }
 
     public bool EnableNip09 { get; set; } = true;
@@ -32,6 +32,9 @@ public class RelayOptions
     public bool EnableNip20 { get; set; } = true;
 
     public int Nip13Difficulty { get; set; } = 0;
+    public string? RelayName { get; set; }
+    public string? RelayDescription { get; set; }
+    public string? RelayAlternativeContact { get; set; }
 
     [JsonIgnore]
     public ECPrivKey? AdminPrivateKey
