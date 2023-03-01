@@ -56,6 +56,7 @@ public static class NIP19
 
     public interface NostrNote
     {
+        string ToNIP19();
     }
 
     public abstract class BaseNostrNoteParser
@@ -97,19 +98,34 @@ public static class NIP19
     {
         public string PubKey { get; set; }
         public string[] Relays { get; set; }
+        public string ToNIP19()
+        {
+            var tlvData = new List<(byte, byte[])>
+            {
+                (NostrProfileNoteParser.PubKeyKey, Convert.FromHexString(PubKey)),
+            };
+            tlvData.AddRange(Relays.Select(relay => (NostrProfileNoteParser.RelayKey, Encoding.ASCII.GetBytes(relay))));
+            var tlv = BuildTLV(tlvData);
+            return Bech32Engine.Encode(NostrProfileNoteParser.HRP, tlv);
+        }
     }
 
     class NostrProfileNoteParser : BaseNostrNoteParser<NosteProfileNote>
     {
-        protected override string Hrp => "nprofile";
+        protected override string Hrp => HRP;
+        
+        public const string HRP = "nprofile";
 
+        
+        public const byte PubKeyKey = 0x00;
+        public const byte RelayKey = 0x01;
         public override NosteProfileNote? Parse(byte[] data)
         {
             var tlv = ParseTLV(data);
             return new NosteProfileNote()
             {
-                PubKey = tlv.Single(pair => pair.Key == 0x00).Value.AsSpan().ToHex(),
-                Relays = tlv.Where(pair => pair.Key == 0x01).Select(pair => Encoding.ASCII.GetString(pair.Value))
+                PubKey = tlv.Single(pair => pair.Key == PubKeyKey).Value.AsSpan().ToHex(),
+                Relays = tlv.Where(pair => pair.Key == RelayKey).Select(pair => Encoding.ASCII.GetString(pair.Value))
                     .ToArray()
             };
         }
@@ -119,19 +135,33 @@ public static class NIP19
     {
         public string EventId { get; set; }
         public string[] Relays { get; set; }
+        public string ToNIP19()
+        {
+            var tlvData = new List<(byte, byte[])>
+            {
+                (NostrEventNoteParser.EventIdKey, Convert.FromHexString(EventId)),
+            };
+            tlvData.AddRange(Relays.Select(relay => (NostrEventNoteParser.RelayKey, Encoding.ASCII.GetBytes(relay))));
+            var tlv = BuildTLV(tlvData);
+            return Bech32Engine.Encode(NostrEventNoteParser.HRP, tlv);
+        }
     }
 
     class NostrEventNoteParser : BaseNostrNoteParser<NostrEventNote>
     {
-        protected override string Hrp => "nevent";
+        protected override string Hrp => HRP;
+        public const string HRP = "nevent";
+        
+        public const byte EventIdKey = 0x00;
+        public const byte RelayKey = 0x01;
 
         public override NostrEventNote? Parse(byte[] data)
         {
             var tlv = ParseTLV(data);
             return new NostrEventNote()
             {
-                EventId = tlv.Single(pair => pair.Key == 0x00).Value.AsSpan().ToHex(),
-                Relays = tlv.Where(pair => pair.Key == 0x01).Select(pair => Encoding.ASCII.GetString(pair.Value))
+                EventId = tlv.Single(pair => pair.Key == EventIdKey).Value.AsSpan().ToHex(),
+                Relays = tlv.Where(pair => pair.Key == RelayKey).Select(pair => Encoding.ASCII.GetString(pair.Value))
                     .ToArray()
             };
         }
@@ -140,19 +170,30 @@ public static class NIP19
     public class NostrRelayNote : NostrNote
     {
         public string Relay { get; set; }
+
+        public string ToNIP19()
+        {
+            var tlvData = new List<(byte, byte[])>
+            {
+                (NostrRelayNoteParser.RelayKey, Encoding.UTF8.GetBytes(Relay))
+            };
+            var tlv = BuildTLV(tlvData);
+            return Bech32Engine.Encode(NostrRelayNoteParser.HRP, tlv);
+        }
     }
 
     class NostrRelayNoteParser : BaseNostrNoteParser<NostrRelayNote>
     {
-        string Relay { get; set; }
-        protected override string Hrp => "nrelay";
+        public const byte RelayKey = 0x00;
+        protected override string Hrp => Hrp;
+        public const string HRP = "nrelay";
 
         public override NostrRelayNote? Parse(byte[] data)
         {
             var tlv = ParseTLV(data);
             return new NostrRelayNote()
             {
-                Relay = tlv.Single(pair => pair.Key == 0x00).Value.AsSpan().ToHex()
+                Relay = Encoding.UTF8.GetString(tlv.Single(pair => pair.Key == RelayKey).Value.AsSpan())
             };
         }
     }
@@ -163,27 +204,46 @@ public static class NIP19
         public string[] Relays { get; set; }
         public string Author { get; set; }
         public uint Kind { get; set; }
+        public string ToNIP19()
+        {
+            var tlvData = new List<(byte, byte[])>
+            {
+                (NostrAddressNoteParser.IdentifierKey, Convert.FromHexString(Identifier)),
+                (NostrAddressNoteParser.AuthorKey, Convert.FromHexString(Author)),
+                (NostrAddressNoteParser.KindKey, BitConverter.GetBytes(Kind).Reverse().ToArray()),
+                
+            };
+            tlvData.AddRange(Relays.Select(relay => (NostrAddressNoteParser.RelayKey, Encoding.ASCII.GetBytes(relay))));
+            var tlv = BuildTLV(tlvData);
+            return Bech32Engine.Encode(NostrAddressNoteParser.HRP, tlv);
+        }
     }
 
     class NostrAddressNoteParser : BaseNostrNoteParser<NostrAddressNote>
     {
-        protected override string Hrp => "naddr";
-
+        public const string HRP = "naddr";
+        protected override string Hrp => HRP;
+public const byte IdentifierKey = 0x00;
+        public const byte RelayKey = 0x01;
+        public const byte AuthorKey = 0x02;
+        public const byte KindKey = 0x03;
+        
         public override NostrAddressNote? Parse(byte[] data)
         {
             var tlv = ParseTLV(data);
             return new NostrAddressNote()
             {
-                Identifier = tlv.Single(pair => pair.Key == 0x00).Value.AsSpan().ToHex(),
-                Author = tlv.Single(pair => pair.Key == 0x02).Value.AsSpan().ToHex(),
-                Kind = tlv.Single(pair => pair.Key == 0x03).Value
+                Identifier = tlv.Single(pair => pair.Key == IdentifierKey).Value.AsSpan().ToHex(),
+                Author = tlv.Single(pair => pair.Key == AuthorKey).Value.AsSpan().ToHex(),
+                Kind = tlv.Single(pair => pair.Key == KindKey).Value
                     .Aggregate<byte, uint>(0, (current, t) => (current << 8) | t),
-                Relays = tlv.Where(pair => pair.Key == 0x01).Select(pair => Encoding.ASCII.GetString(pair.Value))
+                Relays = tlv.Where(pair => pair.Key == RelayKey).Select(pair => Encoding.ASCII.GetString(pair.Value))
                     .ToArray()
             };
         }
     }
 
+    
 
     private static List<KeyValuePair<byte, byte[]>> ParseTLV(byte[] tlvData)
     {
@@ -212,5 +272,42 @@ public static class NIP19
         }
 
         return result;
+    }
+    
+    private static byte[] BuildTLV(List<(byte, byte[])> tlvList)
+    {
+        var result = new List<byte>();
+
+        foreach (var item in tlvList)
+        {
+            var tag = item.Item1;
+            var value = item.Item2;
+            var length = value.Length;
+
+            // handle extended length encoding
+            var lengthBytes = length > 127 ? (byte)Math.Ceiling(length / 256.0) : (byte)0;
+            if (lengthBytes > 0)
+            {
+                length = (int)Math.Pow(256, lengthBytes) + length;
+            }
+
+            result.Add(tag);
+            if (lengthBytes > 0)
+            {
+                result.Add((byte)(0x80 | lengthBytes));
+                for (int i = lengthBytes - 1; i >= 0; i--)
+                {
+                    result.Add((byte)(length / (int)Math.Pow(256, i)));
+                }
+            }
+            else
+            {
+                result.Add((byte)length);
+            }
+
+            result.AddRange(value);
+        }
+
+        return result.ToArray();
     }
 }

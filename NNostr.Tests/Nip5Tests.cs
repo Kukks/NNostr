@@ -46,9 +46,18 @@ namespace NNostr.Tests
             Assert.Equal(npub, npub.FromNIP19Npub().ToNIP19());
             Assert.Equal(nsec, nsec.FromNIP19Nsec().ToNIP19());
 
+            var ournprofile =new NIP19.NosteProfileNote()
+            {
+                PubKey = "3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d",
+                Relays = new[] {"wss://r.x.com", "wss://djbas.sadkb.com"}
+            };
+            
             var nprofile =
                 "nprofile1qqsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8gpp4mhxue69uhhytnc9e3k7mgpz4mhxue69uhkg6nzv9ejuumpv34kytnrdaksjlyr9p";
 
+Assert.Equal(nprofile, 
+    ournprofile.ToNIP19());            
+            
             var note = Assert.IsType<NIP19.NosteProfileNote>(nprofile.FromNIP19Note());
             Assert.Equal("3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d", note.PubKey);
             Assert.Equal(2, note.Relays.Length);
