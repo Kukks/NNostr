@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using LinqKit;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -143,8 +144,7 @@ namespace Relay
                     foreach (var eventsToDeleteByPubKeyItem in eventsToDeleteByPubKey)
                     {
                         await context.Events.Where(evt2 =>
-                                evt2.PublicKey.Equals(eventsToDeleteByPubKeyItem.Key,
-                                    StringComparison.InvariantCultureIgnoreCase) &&
+                                evt2.PublicKey.Equals(eventsToDeleteByPubKeyItem.Key) &&
                                 !evt2.Deleted && eventsToDeleteByPubKeyItem.Value.Contains(evt2.Id))
                             .ForEachAsync(evt2 =>
                             {
@@ -164,8 +164,7 @@ namespace Relay
                 foreach (var eventsToReplace in replaceableEvents)
                 {
                     replacedEvents.AddRange(context.Events.Where(evt2 =>
-                        evt2.PublicKey.Equals(eventsToReplace.Id,
-                            StringComparison.InvariantCultureIgnoreCase) && eventsToReplace.Kind == evt2.Kind &&
+                        evt2.PublicKey.Equals(eventsToReplace.Id) && eventsToReplace.Kind == evt2.Kind &&
                         evt2.CreatedAt < eventsToReplace.CreatedAt));
                 }
 
@@ -180,13 +179,26 @@ namespace Relay
                 var replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
-                    var dValue = eventsToReplace.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? string.Empty;
-                    replacedEvents.AddRange(context.Events.Where(evt2 =>
-                        evt2.PublicKey.Equals(eventsToReplace.Id,
-                            StringComparison.InvariantCultureIgnoreCase) && 
-                        eventsToReplace.Kind == evt2.Kind &&
-                        dValue== (evt2.GetTaggedData<RelayNostrEvent,RelayNostrEventTag>("d").FirstOrDefault()??"") &&
-                        evt2.CreatedAt < eventsToReplace.CreatedAt));
+                    var dValue = eventsToReplace.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? "";
+
+                    var caluse = PredicateBuilder.New<RelayNostrEvent>()
+                        .And(@event => @event.PublicKey == eventsToReplace.Id)
+                        .And(@event => @event.Kind == eventsToReplace.Kind)
+                        .And(@event => @event.CreatedAt < eventsToReplace.CreatedAt);
+                        // .And(@event =>
+                        //     (@event.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ??
+                        //     "") == dValue);
+
+                        
+                    var toreplace =  await context.Events.Where(caluse).ToListAsync();
+                    toreplace = toreplace.Where(@event => dValue == (
+                        @event.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? "")).ToList();
+                    replacedEvents.AddRange(toreplace);
+                    // replacedEvents.AddRange(context.Events.Where(evt2 =>
+                    //     evt2.PublicKey.Equals(eventsToReplace.Id) && 
+                    //     eventsToReplace.Kind == evt2.Kind &&
+                    //     dValue== (evt2.GetTaggedData<RelayNostrEvent,RelayNostrEventTag>("d").FirstOrDefault()??"") &&
+                    //     evt2.CreatedAt < eventsToReplace.CreatedAt));
                 }
 
                 context.Events.RemoveRange(replacedEvents);
