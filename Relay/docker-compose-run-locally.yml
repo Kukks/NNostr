@@ -12,6 +12,9 @@ services:
       ASPNETCORE_ENVIRONMENT: "Development"
       ASPNETCORE_URLS: "http://0.0.0.0:80"
       NOSTR_CONNECTIONSTRINGS__RelayDatabase: "User ID=postgres;Host=postgres;Port=5432;Database=nostrrelay"
-    
+    volumes:
+      - nnostr_datadir:/datadir
     ports:
       - "5000:80"
+volumes:
+  - nnostr_datadir:

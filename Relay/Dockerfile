@@ -19,8 +19,8 @@ RUN dotnet publish "Relay.csproj" -c Release -o /app/publish
 
 FROM base AS final
 WORKDIR /app
-WORKDIR /datadir
-VOLUME /datadir
 ENV NNOSTR_USER_OVERRIDE=/datadir/user-override.json
 COPY --from=publish /app/publish .
+
+VOLUME /datadir
 ENTRYPOINT ["dotnet", "Relay.dll"]
