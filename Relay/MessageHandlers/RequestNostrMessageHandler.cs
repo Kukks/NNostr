@@ -33,7 +33,7 @@ namespace Relay
                 return;
             }
 
-            _logger.LogInformation($"Handling REQ message for connection: {connectionId} \n{msg}");
+            _logger.LogTrace($"Handling REQ message for connection: {connectionId} \n{msg}");
             var json = JsonDocument.Parse(msg).RootElement;
 
             var id = json[1].GetString();

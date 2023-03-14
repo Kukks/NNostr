@@ -56,6 +56,7 @@ public class RelayOptions
     public Uri? BTCPayServerUri { get; set; }
 
     public string? BTCPayServerApiKey { get; set; }
+    public string? BTCPayServerWebhookSecret { get; set; }
 
     public string? BTCPayServerStoreId { get; set; }
 

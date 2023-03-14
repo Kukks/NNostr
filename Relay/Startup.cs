@@ -1,4 +1,5 @@
 using System;
+using EFCoreSecondLevelCacheInterceptor;
 using LinqKit;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
@@ -23,7 +24,7 @@ namespace Relay
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
-            services.AddDbContextFactory<RelayDbContext>(builder =>
+            services.AddDbContextFactory<RelayDbContext>((provider, builder) =>
             {
                 var connString = _configuration.GetConnectionString(RelayDbContext.DatabaseConnectionStringName);
                 if (string.IsNullOrEmpty(connString))
@@ -31,13 +32,20 @@ namespace Relay
                     throw new Exception("Database: Connection string not set");
                 }
 
-                builder.UseNpgsql(connString, optionsBuilder => { optionsBuilder.EnableRetryOnFailure(10); });
+                builder.UseNpgsql(connString, optionsBuilder =>
+                {
+                    optionsBuilder.EnableRetryOnFailure(10);
+                });
                 builder.WithExpressionExpanding();
+                builder.AddInterceptors(provider.GetRequiredService<SecondLevelCacheInterceptor>());
             });
+            services.AddEFSecondLevelCache(options =>
+                options.UseMemoryCacheProvider(CacheExpirationMode.Sliding, TimeSpan.FromMinutes(5)).DisableLogging(true).UseCacheKeyPrefix("EF_"));
             services.AddHostedService<MigrationHostedService>();
             services.AddHostedService(provider => provider.GetRequiredService<EventNostrMessageHandler>());
             services.AddHostedService(provider => provider.GetRequiredService<BTCPayServerService>());
-            services.AddHostedService<AdminChatBot>();
+            services.AddSingleton<AdminChatBot>();
+            services.AddHostedService<AdminChatBot>(provider => provider.GetRequiredService<AdminChatBot>());
             services.AddLogging();
             services.AddOptions<RelayOptions>().Bind(_configuration);
             services.AddSingleton<NostrEventService>();

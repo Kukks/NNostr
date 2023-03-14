@@ -6,7 +6,6 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
-using BTCPayServer.Client.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -122,66 +121,16 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                 {
                     case "topup":
                     {
-                        await using var context = await _dbContextFactory.CreateDbContextAsync();
-                        var topup = await context.BalanceTopups.FirstOrDefaultAsync(topup =>
-                            topup.BalanceId == evt.PublicKey && topup.Status == BalanceTopup.TopupStatus.Pending);
-                        Balance? b = null;
 
-                        InvoiceData i = null;
-                        if (topup is not null)
+                        var topupBalance = await _btcPayServerService.GetActiveTopupOrBalance(evt.PublicKey);
+                        if(topupBalance.invoice is null)
                         {
-                            var status = await _btcPayServerService.HandleInvoice(topup.Id);
-                            topup.Status = status.status;
-                            if (topup.Status == BalanceTopup.TopupStatus.Complete)
-                            {
-                                await context.BalanceTransactions.AddAsync(new BalanceTransaction()
-                                {
-                                    Event = null,
-                                    BalanceTopupId = topup.Id,
-                                    BalanceId = topup.BalanceId,
-                                    Timestamp = DateTimeOffset.UtcNow,
-                                    Value = status.value,
-                                });
-
-                                b = await context.Balances.FindAsync(evt.PublicKey);
-                                b!.CurrentBalance += status.value;
-                                topup = null;
-                            }
-                            else if (topup.Status == BalanceTopup.TopupStatus.Expired)
-                            {
-                                topup = null;
-                            }
-                            else
-                            {
-                                i = status.invoiceData;
-                            }
+                            await ReplyToEvent(evt.Id,evt.PublicKey, "Could not connect to payment gateway. Try again later.");
                         }
-
-                        if (topup is null)
+                        else
                         {
-                            b ??= await context.Balances.FindAsync(evt.PublicKey);
-                            if (b is null)
-                            {
-                                b = new Balance()
-                                {
-                                    PublicKey = evt.PublicKey,
-                                    CurrentBalance = _options.CurrentValue.PubKeyCost * -1
-                                };
-                                await context.Balances.AddAsync(b);
-                            }
-
-                            i = await _btcPayServerService.CreateInvoice(evt.PublicKey);
-                            topup = new BalanceTopup()
-                            {
-                                Status = BalanceTopup.TopupStatus.Pending,
-                                BalanceId = b.PublicKey,
-                                Id = i.Id
-                            };
-
-                            await context.BalanceTopups.AddAsync(topup);
+                            await ReplyToEvent(evt.Id,evt.PublicKey, $"Topup here: {topupBalance.invoice.CheckoutLink}. \n Your balance is {topupBalance.balance.CurrentBalance}. ");
                         }
-
-                        await ReplyToEvent(evt, $"Topup here: {i.CheckoutLink}");
                         break;
                     }
 
@@ -189,7 +138,7 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                     {
                         await using var context = await _dbContextFactory.CreateDbContextAsync();
                         var b = await context.Balances.FindAsync(evt.PublicKey);
-                        await ReplyToEvent(evt,
+                        await ReplyToEvent(evt.Id,evt.PublicKey,
                             $"Your balance is: {b?.CurrentBalance ?? _options.CurrentValue.PubKeyCost * -1}.");
                         break;
                     }
@@ -198,11 +147,11 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                         switch (args.FirstOrDefault()?.ToLowerInvariant())
                         {
                             case "config":
-                                await ReplyToEvent(evt, JsonSerializer.Serialize(_options.CurrentValue));
+                                await ReplyToEvent(evt.Id,evt.PublicKey, JsonSerializer.Serialize(_options.CurrentValue));
                                 break;
                             case "factory-reset":
                                 File.Delete(Program.SettingsOverrideFile);
-                                await ReplyToEvent(evt, "Factory reset complete.");
+                                await ReplyToEvent(evt.Id,evt.PublicKey, "Factory reset complete.");
                                 break;
                             case "update":
                                 try
@@ -211,18 +160,18 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                                     var newOverride = JsonSerializer.Deserialize<RelayOptions>(json);
                                     if (!newOverride.Validate(out var errors))
                                     {
-                                        await ReplyToEvent(evt,
+                                        await ReplyToEvent(evt.Id,evt.PublicKey,
                                             "config was invalid. Errors: " + string.Join(Environment.NewLine, errors));
                                     }
 
                                     await File.WriteAllTextAsync(Program.SettingsOverrideFile,
                                         JsonSerializer.Serialize(newOverride));
 
-                                    await ReplyToEvent(evt, "Config updated.");
+                                    await ReplyToEvent(evt.Id,evt.PublicKey, "Config updated.");
                                 }
                                 catch (Exception e)
                                 {
-                                    await ReplyToEvent(evt,
+                                    await ReplyToEvent(evt.Id,evt.PublicKey,
                                         "config was invalid or could not be parsed. the command is /admin update {json} where {json} is the json format from /admin config.");
                                 }
 
@@ -237,7 +186,7 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
         }
     }
 
-    private async Task ReplyToEvent(RelayNostrEvent evt, string content)
+    public async Task ReplyToEvent(string? eventId, string? publicKey, string content)
     {
         var reply = new RelayNostrEvent()
         {
@@ -245,26 +194,10 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
             Kind = 4,
             CreatedAt = DateTimeOffset.UtcNow,
             PublicKey = AdminPubKey,
-            Tags = new List<RelayNostrEventTag>()
-            {
-                new()
-                {
-                    TagIdentifier = "p",
-                    Data = new List<string>()
-                    {
-                        evt.PublicKey
-                    }
-                },
-                new()
-                {
-                    TagIdentifier = "e",
-                    Data = new List<string>()
-                    {
-                        evt.Id
-                    }
-                }
-            }
+            Tags = new()
         };
+        if (publicKey != null) reply.SetTag<RelayNostrEvent, RelayNostrEventTag>("p", publicKey);
+        if (eventId != null) reply.SetTag<RelayNostrEvent, RelayNostrEventTag>("e", eventId);
         await AddEvent(reply);
     }
 
