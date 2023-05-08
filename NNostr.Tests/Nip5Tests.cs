@@ -10,7 +10,7 @@ namespace NNostr.Tests
     public class Nip5Tests
     {
         [Theory]
-        [InlineData("kori@nostress.cc", "1ad34e8aa265df5bd6106b4535a6a82528141efd800beb35b6413d7a8298741f")]
+        [InlineData("kukks@kukks.org", "22aa81510ee63fe2b16cae16e0921f78e9ba9882e2868e7e63ad6d08ae9b5954")]
         [InlineData("kori@no.str.cr", "1ad34e8aa265df5bd6106b4535a6a82528141efd800beb35b6413d7a8298741f")]
         public async Task CanGetNip5(string nip5, string pubKey)
         {
