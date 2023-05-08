@@ -9,18 +9,18 @@
 
     <ItemGroup>
       <PackageReference Include="BTCPayServer.Client" Version="1.7.2" />
-      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="3.8.5" />
-      <PackageReference Include="LinqKit" Version="1.2.3" />
-      <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="7.1.3" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.3" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="7.0.3">
+      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="3.8.8" />
+      <PackageReference Include="LinqKit" Version="1.2.4" />
+      <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="7.1.4" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.5" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="7.0.5">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="NBitcoin" Version="7.0.24" />
-      <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.0" />
-      <PackageReference Include="Npgsql" Version="7.0.2" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.3" />
+      <PackageReference Include="NBitcoin" Version="7.0.25" />
+      <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.1" />
+      <PackageReference Include="Npgsql" Version="7.0.4" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.4" />
     </ItemGroup>
 
     <ItemGroup>

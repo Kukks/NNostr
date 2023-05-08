@@ -6,7 +6,7 @@
         <Nullable>enable</Nullable>
         <LangVersion>10</LangVersion>
         <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-        <PackageVersion>0.0.24</PackageVersion>
+        <PackageVersion>0.0.25</PackageVersion>
         <Title>Nostr Client</Title>
         <Description>A client for Nostr</Description>
         <Copyright>MIT</Copyright>
@@ -23,9 +23,10 @@
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="LinqKit.Core" Version="1.2.2" />
-        <PackageReference Include="NBitcoin.Secp256k1" Version="3.0.1" />
-        <PackageReference Include="System.Text.Json" Version="6.0.5" />
+        <PackageReference Include="LinqKit.Core" Version="1.2.4" />
+        <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.1" />
+        <PackageReference Include="System.Interactive.Async" Version="6.0.1" />
+        <PackageReference Include="System.Text.Json" Version="6.0.7" />
     </ItemGroup>
 
 </Project>

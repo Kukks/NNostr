@@ -18,9 +18,8 @@ public abstract  class BaseNostrEvent<TEventTag> where TEventTag: NostrEventTag
     [JsonPropertyName("content")]
     [JsonConverter(typeof(StringEscaperJsonConverter))]
     public string Content { get; set; }
-        
-    [JsonPropertyName("tags")]
-    public List<TEventTag> Tags { get; set; }
+
+    [JsonPropertyName("tags")] public List<TEventTag> Tags { get; set; } = new();
         
     [JsonPropertyName("sig")]
     public string Signature { get; set; }

@@ -5,7 +5,114 @@ using System.Threading.Channels;
 
 namespace NNostr.Client
 {
-    public class NostrClient : IDisposable
+
+    public class CompositeNostrClient: INostrClient
+    {
+        private readonly NostrClient[] _clients;
+
+        public CompositeNostrClient(Uri[] relays, Action<ClientWebSocket>? websocketConfigure = null)
+        {
+            _clients = relays.Select(r =>
+            {
+                var c = new NostrClient(r, websocketConfigure);
+                c.MessageReceived += (sender, message) => MessageReceived?.Invoke(sender, message);
+                c.InvalidMessageReceived += (sender, message) => InvalidMessageReceived?.Invoke(sender, message);
+                c.NoticeReceived += (sender, message) => NoticeReceived?.Invoke(sender, message);
+                c.EventsReceived += (sender, events) => EventsReceived?.Invoke(sender, events);
+                c.OkReceived += (sender, ok) => OkReceived?.Invoke(sender, ok);
+                c.EoseReceived += (sender, message) => EoseReceived?.Invoke(sender, message);
+                
+                return c;
+            }).ToArray();
+        }
+        public Task Disconnect()
+        {
+            return Task.WhenAll(_clients.Select(c => c.Disconnect()));
+        }
+
+        public Task Connect(CancellationToken token = default)
+        {
+            return Task.WhenAll(_clients.Select(c => c.Connect(token)));
+        }
+
+        public IAsyncEnumerable<string> ListenForRawMessages()
+        {
+            return _clients.Select(c => c.ListenForRawMessages()).ToArray().Merge();
+        }
+
+        public Task ListenForMessages()
+        {
+            return Task.WhenAll(_clients.Select(c => c.ListenForMessages()));
+        }
+
+        public Task PublishEvent(NostrEvent nostrEvent, CancellationToken token = default)
+        { 
+            return Task.WhenAll(_clients.Select(c => c.PublishEvent(nostrEvent, token)));
+        }
+
+        public Task CloseSubscription(string subscriptionId, CancellationToken token = default)
+        {
+            return Task.WhenAll(_clients.Select(c => c.CloseSubscription(subscriptionId, token)));
+        }
+
+        public Task CreateSubscription(string subscriptionId, NostrSubscriptionFilter[] filters, CancellationToken token = default)
+        {
+            return Task.WhenAll(_clients.Select(c => c.CreateSubscription(subscriptionId, filters, token)));
+        }
+
+        public void Dispose()
+        {
+            foreach (var client in _clients)
+            {
+                client.MessageReceived -= MessageReceived;
+                client.InvalidMessageReceived -= InvalidMessageReceived;
+                client.NoticeReceived -= NoticeReceived;
+                client.EventsReceived -= EventsReceived;
+                client.OkReceived -= OkReceived;
+                client.EoseReceived -= EoseReceived;
+                
+                client.Dispose();
+                
+            }
+        }
+
+        public Task ConnectAndWaitUntilConnected(CancellationToken token = default)
+        {
+            return Task.WhenAll(_clients.Select(c => c.ConnectAndWaitUntilConnected(token)));
+        }
+
+        public event EventHandler<string>? MessageReceived;
+        public event EventHandler<string>? InvalidMessageReceived;
+        public event EventHandler<string>? NoticeReceived;
+        public event EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
+        public event EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
+        public event EventHandler<string>? EoseReceived;
+    }
+
+
+    public interface INostrClient : IDisposable
+    {
+        Task Disconnect();
+        Task Connect(CancellationToken token = default);
+        IAsyncEnumerable<string> ListenForRawMessages();
+        Task ListenForMessages();
+        Task PublishEvent(NostrEvent nostrEvent, CancellationToken token = default);
+        Task CloseSubscription(string subscriptionId, CancellationToken token = default);
+
+        Task CreateSubscription(string subscriptionId, NostrSubscriptionFilter[] filters,
+            CancellationToken token = default);
+
+        Task ConnectAndWaitUntilConnected(CancellationToken token = default);
+        
+        event EventHandler<string>? MessageReceived;
+        event EventHandler<string> InvalidMessageReceived;
+        event EventHandler<string>? NoticeReceived;
+        event EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
+        event EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
+        event EventHandler<string>? EoseReceived;
+    }
+
+    public class NostrClient : INostrClient
     {
         protected ClientWebSocket? WebSocket;
         
@@ -34,13 +141,6 @@ namespace NNostr.Client
             return Task.CompletedTask;
         }
 
-        public EventHandler<string>? MessageReceived;
-        public EventHandler<string>? InvalidMessageReceived;
-        public EventHandler<string>? NoticeReceived;
-        public EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
-        public EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
-        public EventHandler<string>? EoseReceived;
-
         public async Task Connect(CancellationToken token = default)
         {
             _cts = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -48,8 +148,7 @@ namespace NNostr.Client
             while (!_cts.IsCancellationRequested)
             {
                 await ConnectAndWaitUntilConnected(_cts.Token);
-                _ = ListenForMessages();
-                WebSocket!.Abort();
+                await ListenForMessages();
             }
         }
 
@@ -209,7 +308,32 @@ namespace NNostr.Client
             await WaitUntilConnected(cts.Token);
         }
 
-        private async Task WaitUntilConnected(CancellationToken token)
+        /// <summary>
+        /// All messages received in their raw format from the relay will be sent to this event.
+        /// </summary>
+        public event EventHandler<string>? MessageReceived;
+        /// <summary>
+        /// All messages that could not be parsed as JSON will be sent to this event.
+        /// </summary>
+        public event EventHandler<string>? InvalidMessageReceived;
+        /// <summary>
+        /// All notices received from the relay will be sent to this event.
+        /// </summary>
+        public event EventHandler<string>? NoticeReceived;
+        /// <summary>
+        /// All events received from the relay based on an existing subscription will be sent to this event.
+        /// </summary>
+        public event EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
+        /// <summary>
+        /// All OK messages received from the relay will be sent to this event.
+        /// </summary>
+        public event EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
+        /// <summary>
+        /// All EOSE messages for every active subscription received from the relay will be sent to this event.
+        /// </summary>
+        public event EventHandler<string>? EoseReceived;
+
+        public async Task WaitUntilConnected(CancellationToken token = default)
         {
             while (WebSocket != null && WebSocket.State != WebSocketState.Open && !token.IsCancellationRequested)
             {

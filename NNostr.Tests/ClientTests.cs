@@ -3,7 +3,9 @@ using NBitcoin.Secp256k1;
 using NNostr.Client;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Threading;
 using System.Threading.Tasks;
+using NBitcoin;
 using Xunit;
 
 namespace NNostr.Tests;
@@ -50,10 +52,32 @@ public class ClientTests
     public void CanHandlePrivatePublicKeyFormats()
     {
         var privKeyHex = "7f4c11a9742721d66e40e321ca50b682c27f7422190c14a187525e69e604836a";
+        
         Assert.True(Context.Instance.TryCreateECPrivKey(Convert.FromHexString(privKeyHex), out var privKey));
         Debug.Assert(privKey != null, nameof(privKey) + " != null");
         var pubKey = privKey.CreateXOnlyPubKey();
         Assert.Equal("7cef86754ddf07395c289c30fe31219de938c6d707d6b478a8682fc75795e8b9",
             pubKey.ToBytes().AsSpan().ToHex());
+    }
+
+    [Fact]
+    public async Task CanUseClient()
+    {
+        var uri = new Uri("wss://nostr.btcmp.com");
+        var client = new NostrClient(uri);
+        _ = client.Connect();
+        await client.WaitUntilConnected(CancellationToken.None);
+        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var khex = k.ToHex();
+        var user1 = CreateUser(khex);
+
+        var evt = new NostrEvent()
+        {
+            Kind = 1,
+            Content = "testing NNostr",
+        };
+        await evt.ComputeIdAndSignAsync(user1.PrivateKey);
+        await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None);
+        
     }
 }

@@ -1,12 +1,7 @@
 ﻿using NNostr.Client.Protocols;
 using Shouldly;
-using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using LNURL;
-using NBitcoin.DataEncoders;
 using NNostr.Client;
 using Xunit;
 
