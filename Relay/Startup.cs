@@ -24,6 +24,8 @@ namespace Relay
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddCors(options =>
+                options.AddDefaultPolicy(builder => builder.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin()));
             services.AddDbContextFactory<RelayDbContext>((provider, builder) =>
             {
                 var connString = _configuration.GetConnectionString(RelayDbContext.DatabaseConnectionStringName);
@@ -73,7 +75,7 @@ namespace Relay
             }
 
             app.UseRouting();
-
+            app.UseCors();
             app.UseWebSockets();
             app.UseMiddleware<WebsocketMiddleware>();
             app.UseMiddleware<Nip11Middleware>();
