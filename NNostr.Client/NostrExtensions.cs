@@ -243,10 +243,15 @@ namespace NNostr.Client
                     e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
             }
 
-            var tagFilters = filter.GetAdditionalTagFilters();
-            filterQuery = tagFilters.Where(tagFilter => tagFilter.Value.Any()).Aggregate(filterQuery,
-                (current, tagFilter) => current.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Equals(tag.Data[1]))));
+            var tagFilters = filter.GetAdditionalTagFilters().Where(pair => pair.Value.Any());
+          
+
+
+            foreach (var tagFilter in tagFilters)
+            {
+                filterQuery = filterQuery
+                    .Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1])));
+            }
 
             if (filter.Limit is not null)
             {
