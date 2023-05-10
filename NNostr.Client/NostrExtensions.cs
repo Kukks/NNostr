@@ -250,7 +250,8 @@ namespace NNostr.Client
             foreach (var tagFilter in tagFilters)
             {
                 filterQuery = filterQuery
-                    .Where(e => e.Tags.Any(tag => tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[1])));
+                    .Where(e => e.Tags.Any(tag =>
+                        tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0])));
             }
 
             if (filter.Limit is not null)

@@ -22,6 +22,7 @@ public class AdminChatBot : IHostedService
 {
     private readonly WebSocketHandler _webSocketHandler;
     private readonly StateManager _stateManager;
+    private readonly ConnectionManager _connectionManager;
     private readonly NostrEventService _nostrEventService;
     private readonly IOptionsMonitor<RelayOptions> _options;
     private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
@@ -32,10 +33,11 @@ public class AdminChatBot : IHostedService
 
     public AdminChatBot(NostrEventService nostrEventService, IOptionsMonitor<RelayOptions> options,
         IDbContextFactory<RelayDbContext> dbContextFactory, BTCPayServerService btcPayServerService,
-        ILogger<AdminChatBot> logger, WebSocketHandler webSocketHandler, StateManager stateManager)
+        ILogger<AdminChatBot> logger, WebSocketHandler webSocketHandler, StateManager stateManager, ConnectionManager connectionManager)
     {
         _webSocketHandler = webSocketHandler;
         _stateManager = stateManager;
+        _connectionManager = connectionManager;
         _nostrEventService = nostrEventService;
         _options = options;
         _dbContextFactory = dbContextFactory;
@@ -146,6 +148,12 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                     {
                         switch (args.FirstOrDefault()?.ToLowerInvariant())
                         {
+                            case "info":
+                                await ReplyToEvent(evt.Id,evt.PublicKey, @"
+Active connections: " + _connectionManager.Connections.Count + @"
+Active subscriptions: " + _stateManager.SubscriptionToFilter.Count + @"
+Active filters: " + _stateManager.FilterToConnection.Count );
+                                break;
                             case "config":
                                 await ReplyToEvent(evt.Id,evt.PublicKey, JsonSerializer.Serialize(_options.CurrentValue));
                                 break;

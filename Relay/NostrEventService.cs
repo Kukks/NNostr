@@ -249,7 +249,8 @@ namespace Relay
             return new NostrEventsMatched()
             {
                 Events = await CachedFilterResults.GetOrAddAsync(id, GetFromDB),
-                FilterId = id
+                FilterId = id,
+                InitialRequest = true
             };
         }
 

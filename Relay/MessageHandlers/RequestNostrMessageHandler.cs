@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using NNostr.Client;
 using Relay.Data;
 
@@ -11,6 +13,7 @@ namespace Relay
 {
     public class RequestNostrMessageHandler : INostrMessageHandler
     {
+        private readonly IOptionsMonitor<RelayOptions> _options;
         private readonly NostrEventService _nostrEventService;
         private readonly StateManager _stateManager;
         private readonly ILogger<RequestNostrMessageHandler> _logger;
@@ -18,9 +21,12 @@ namespace Relay
 
         private const string PREFIX = "REQ";
 
-        public RequestNostrMessageHandler(NostrEventService nostrEventService,
+        public RequestNostrMessageHandler(
+            IOptionsMonitor<RelayOptions> options,
+            NostrEventService nostrEventService,
             StateManager stateManager, ILogger<RequestNostrMessageHandler> logger)
         {
+            _options = options;
             _nostrEventService = nostrEventService;
             _stateManager = stateManager;
             _logger = logger;
@@ -73,7 +79,47 @@ namespace Relay
                     }
                 }
 
-            results.ForEach(matched => _nostrEventService.InvokeMatched(matched) );
+            TaskCompletionSource tcsForEose = new();
+            List<string> waitingForFilters = new List<string>(results.Select(matched => matched.FilterId));
+            results.ForEach(matched =>
+            {
+                if (_options.CurrentValue.EnableNip15)
+                {
+                    matched.OnEventsSent = tuple =>
+                    {
+                        if (waitingForFilters.Remove(tuple.Item2.FilterId) && waitingForFilters.Count == 0)
+                        {
+                            tcsForEose.SetResult();
+                        }
+                    };
+                }
+
+                _nostrEventService.InvokeMatched(matched);
+            });
+            if (_options.CurrentValue.EnableNip15)
+            {
+                var task = tcsForEose.Task.WaitAsync(TimeSpan.FromMinutes(5)).ContinueWith(task =>
+                {
+                    _stateManager.PendingMessages.Writer.TryWrite((connectionId,
+                        JsonSerializer.Serialize(new[]
+                        {
+                            "EOSE",
+                            id
+                        })));
+                });
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await task;
+                    }
+                    catch (Exception e)
+                    {
+                        _logger.LogError(e,
+                            $"Did not get confirmation of event stream ending to send EOSE for subscription {id} of connection {connectionId}");
+                    }
+                });
+            }
         }
     }
 }

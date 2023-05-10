@@ -3,7 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net7.0</TargetFramework>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        <AssemblyVersion>0.0.11</AssemblyVersion>
+        <AssemblyVersion>0.0.12</AssemblyVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 

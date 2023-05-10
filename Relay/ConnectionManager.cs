@@ -48,13 +48,20 @@ namespace Relay
 
             foreach (var connectionId in connections)
             {
-                if (!_stateManager.ConnectionToSubscriptions.TryGetValues(connectionId, out var connection))
+                
+                if (!_stateManager.ConnectionToSubscriptions.TryGetValues(connectionId, out var connectionSubscriptions))
                 {
+                    continue;
+                }
+                if (!Connections.ContainsKey(connectionId))
+                {
+                    _stateManager.RemoveConnection(connectionId, out var orphanedFilters);
+                    orphanedFilters.ForEach(x => _nostrEventService.RemoveFilter(x));
                     continue;
                 }
                 foreach (var subscription in subscriptions)
                 {
-                    if (connection.Contains(subscription))
+                    if (connectionSubscriptions.Contains(subscription))
                     {
                         foreach (var nostrEvent in e.Events)
                         {
@@ -64,18 +71,10 @@ namespace Relay
                                     "EVENT", subscription, nostrEvent
                                 })));
                         }
-
-                        if(_options.CurrentValue.EnableNip15)
-                        {
-                            _stateManager.PendingMessages.Writer.TryWrite((connectionId,
-                                JsonSerializer.Serialize(new[]
-                                {
-                                    "EOSE",
-                                    subscription
-                                })));
-                        }
+                        e.OnEventsSent?.Invoke((connectionId, e));
                     }
                 }
+
             }
         }
 

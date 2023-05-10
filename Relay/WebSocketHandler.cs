@@ -41,18 +41,13 @@ namespace Relay
         {
             var id = WebSocketWebSocketConnectionManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
 
-            if (id is not null && WebSocketWebSocketConnectionManager.Connections.TryRemove(id, out _) &&
-                _stateManager.ConnectionToSubscriptions.TryGetValues(id, out var subscriptions))
+            if (id is not null)
             {
-                var orphanedFilters = new List<string>();
-
-                foreach (var subscription in subscriptions.ToArray())
+                _stateManager.RemoveConnection(id, out var orphanedFilters);
+                foreach (var orphanedFilter in orphanedFilters)
                 {
-                    _stateManager.RemoveSubscription(id, subscription, out var orphanedFilters2);
-                    orphanedFilters = orphanedFilters.Union(orphanedFilters2).ToList();
+                    _nostrEventService.RemoveFilter(orphanedFilter);
                 }
-
-                orphanedFilters.ForEach(_nostrEventService.RemoveFilter);
             }
 
             _logger.LogInformation($"Removed connection: {id}");
