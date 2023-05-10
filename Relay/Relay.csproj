@@ -3,13 +3,13 @@
     <PropertyGroup>
         <TargetFramework>net7.0</TargetFramework>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        <AssemblyVersion>0.0.10</AssemblyVersion>
+        <AssemblyVersion>0.0.11</AssemblyVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
       <PackageReference Include="BTCPayServer.Client" Version="1.7.2" />
-      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="3.8.8" />
+      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="3.9.1" />
       <PackageReference Include="LinqKit" Version="1.2.4" />
       <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="7.1.4" />
       <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.5" />

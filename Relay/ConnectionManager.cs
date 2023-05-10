@@ -43,33 +43,35 @@ namespace Relay
         private async Task NostrEventServiceOnEventsMatched(NostrEventsMatched e)
         {
 
-            var subscriptions = _stateManager.SubscriptionToFilter.Where(pair => pair.Value.Contains(e.FilterId)).Select(pair => pair.Key);
+            var subscriptions = _stateManager.SubscriptionToFilter.GetKeysContainingValue(e.FilterId);
+            var connections = _stateManager.ConnectionToSubscriptions.GetKeysContainingValue(subscriptions);;
 
-            var connections =
-                _stateManager.ConnectionToSubscriptions.Where(pair => pair.Value.Any(s => subscriptions.Contains(s)));
-
-            foreach (var connection in connections)
+            foreach (var connectionId in connections)
             {
+                if (!_stateManager.ConnectionToSubscriptions.TryGetValues(connectionId, out var connection))
+                {
+                    continue;
+                }
                 foreach (var subscription in subscriptions)
                 {
-                    if (connection.Value.Contains(subscription))
+                    if (connection.Contains(subscription))
                     {
                         foreach (var nostrEvent in e.Events)
                         {
-                            await _stateManager.PendingMessages.Writer.WriteAsync((connection.Key,
+                            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
                                 JsonSerializer.Serialize(new object[]
                                 {
                                     "EVENT", subscription, nostrEvent
                                 })));
                         }
 
-                        if(_options.CurrentValue.EnableNip15 && e.Events.Any())
+                        if(_options.CurrentValue.EnableNip15)
                         {
-                            _stateManager.PendingMessages.Writer.TryWrite((connection.Key,
+                            _stateManager.PendingMessages.Writer.TryWrite((connectionId,
                                 JsonSerializer.Serialize(new[]
                                 {
                                     "EOSE",
-                                    connection.Key
+                                    subscription
                                 })));
                         }
                     }

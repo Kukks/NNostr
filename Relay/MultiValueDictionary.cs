@@ -87,6 +87,11 @@ public class ConcurrentMultiDictionary<TKey, TValue>
         if (!_dictionary.TryGetValue(key, out var bag)) return false;
         lock (bag) return !bag.IsDiscarded && bag.Contains(value);
     }
+ public bool Contains(TKey key, IEnumerable<TValue> value)
+    {
+        if (!_dictionary.TryGetValue(key, out var bag)) return false;
+        lock (bag) return !bag.IsDiscarded && value.Any(bag.Contains);
+    }
 
     public bool ContainsKey(TKey key) => _dictionary.ContainsKey(key);
 
@@ -108,5 +113,17 @@ public class ConcurrentMultiDictionary<TKey, TValue>
     public bool ContainsValue(TValue value)
     {
         return _dictionary.Keys.Any(key => Contains(key, value));
+    }
+    public bool ContainsValue(IEnumerable<TValue> value)
+    {
+        return _dictionary.Keys.Any(key => Contains(key, value));
+    }
+    public IEnumerable<TKey> GetKeysContainingValue(IEnumerable<TValue> value)
+    {
+        return _dictionary.Keys.Where(key => Contains(key, value));
+    }
+    public IEnumerable<TKey> GetKeysContainingValue(TValue value)
+    {
+        return _dictionary.Keys.Where(key => Contains(key, value));
     }
 }
