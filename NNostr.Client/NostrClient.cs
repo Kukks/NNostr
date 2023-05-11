@@ -154,21 +154,32 @@ namespace NNostr.Client
 
         public async IAsyncEnumerable<string> ListenForRawMessages()
         {
-            Memory<byte> buffer = new byte[2048];
             while (WebSocket.State == WebSocketState.Open && !_cts.IsCancellationRequested)
             {
-                ValueWebSocketReceiveResult result;
-                using var ms = new MemoryStream();
+                var bufferSize = 1000;
+                var  buffer = new byte[bufferSize];
+                
+                var offset = 0;
+                var free = buffer.Length;
+                WebSocketReceiveResult result;
                 do
                 {
-                    result = await WebSocket!.ReceiveAsync(buffer, _cts.Token).ConfigureAwait(false);
-                    ms.Write(buffer.Span);
+                    result = await WebSocket!.ReceiveAsync(new ArraySegment<byte>(buffer, offset, free), _cts.Token).ConfigureAwait(false);
+                    offset += result.Count;
+                    free -= result.Count;
+                    if (free != 0) continue;
+                    // No free space
+                    // Resize the outgoing buffer
+                    var newSize = buffer.Length + bufferSize;
+                        
+                    var newBuffer = new byte[newSize];
+                    Array.Copy(buffer, 0, newBuffer, 0, offset);
+                    buffer = newBuffer;
+                    free = buffer.Length - offset;
                 }
                 while (!result.EndOfMessage);
-
-                ms.Seek(0, SeekOrigin.Begin);
-
-                yield return Encoding.UTF8.GetString(ms.ToArray());
+                var str = Encoding.UTF8.GetString(buffer, 0, offset);
+                yield return str;
 
                 if (result.MessageType == WebSocketMessageType.Close)
                     break;
@@ -235,7 +246,7 @@ namespace NNostr.Client
             {
                 return await WaitUntilConnected(token)
                     .ContinueWith(_ => WebSocket?.SendMessageAsync(message, token), token)
-                    .ContinueWith(_ => true, token);
+                    .ContinueWith(_ => _.Status == TaskStatus.RanToCompletion, token);
             }
             catch
             {

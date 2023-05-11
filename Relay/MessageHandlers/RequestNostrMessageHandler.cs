@@ -98,15 +98,13 @@ namespace Relay
             });
             if (_options.CurrentValue.EnableNip15)
             {
-                var task = tcsForEose.Task.WaitAsync(TimeSpan.FromMinutes(5)).ContinueWith(task =>
-                {
-                    _stateManager.PendingMessages.Writer.TryWrite((connectionId,
+                var task = tcsForEose.Task.WaitAsync(TimeSpan.FromMinutes(5)).ContinueWith(_ => _stateManager.PendingMessages.Writer.WaitToWriteAsync().AsTask()).ContinueWith(_ => 
+                     _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
                         JsonSerializer.Serialize(new[]
                         {
                             "EOSE",
                             id
-                        })));
-                });
+                        }))));
                 _ = Task.Run(async () =>
                 {
                     try

@@ -1,3 +1,4 @@
+using System.Threading.Channels;
 using LinqKit;
 
 using NBitcoin.Secp256k1;
@@ -320,6 +321,67 @@ namespace NNostr.Client
                         tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0]))));
 
             return filterQuery;
+        }
+
+        public static async IAsyncEnumerable<NostrEvent> SubscribeForEvents(this INostrClient client,
+            NostrSubscriptionFilter[] filters, bool stopWhenEoseSent, CancellationToken cancellationToken)
+        {
+            
+            var subscriptionId = Guid.NewGuid().ToString();
+            var _receivedEvents = Channel.CreateUnbounded<NostrEvent>(new() {SingleReader = true, SingleWriter = true});
+            
+            var tcs = new TaskCompletionSource();
+            cancellationToken.Register(() => tcs.TrySetResult());
+            void OnClientOnEventsReceived(object? sender, (string subscriptionId, NostrEvent[] events) args)
+                {
+                    if (args.subscriptionId == subscriptionId)
+                    {
+                        foreach (var @event in args.events)
+                        {
+                            _receivedEvents.Writer.TryWrite(@event);
+                        }
+                    }
+                }
+            void OnClientOnEoseReceived(object? sender, string s)
+            {
+                if (s == subscriptionId)
+                {
+                    tcs.TrySetResult();
+                }
+            }
+            if (stopWhenEoseSent)
+            {
+                    
+                client.EoseReceived += OnClientOnEoseReceived;
+            }
+            client.EventsReceived += OnClientOnEventsReceived;
+            
+            try
+            {
+                
+                await client.CreateSubscription(subscriptionId, filters);
+                while (true)
+                {
+                    var delayTask = tcs.Task;
+                    var readTask = _receivedEvents.Reader.WaitToReadAsync().AsTask();
+
+                    if (await Task.WhenAny(delayTask, readTask) == delayTask)
+                    {
+                        break; // Cancellation has been requested
+                    }
+                    while (_receivedEvents.Reader.TryRead(out var @event))
+                    {
+                        yield return @event;
+                    }
+                }
+            }
+            finally
+            {
+                await client.CloseSubscription(subscriptionId);
+                
+                client.EventsReceived -= OnClientOnEventsReceived;
+                client.EoseReceived -= OnClientOnEoseReceived;
+            }
         }
 
         public static async Task SendEventsAndWaitUntilReceived(this INostrClient client, NostrEvent[] events,

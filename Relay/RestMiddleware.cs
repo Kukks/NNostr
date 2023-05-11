@@ -34,7 +34,7 @@ public class RestMiddleware : IMiddleware
     public async Task InvokeAsync(HttpContext context, RequestDelegate next)
     {
         if (!context.WebSockets.IsWebSocketRequest &&
-            context.Request.Headers.Accept.Any(s =>
+            context.Request.Headers.ContentType.Any(s =>
                 s.Equals("application/json", StringComparison.InvariantCultureIgnoreCase)))
         {
             using var streamReader = new StreamReader(context.Request.Body);

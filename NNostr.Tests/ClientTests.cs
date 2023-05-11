@@ -3,6 +3,7 @@ using NBitcoin.Secp256k1;
 using NNostr.Client;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using NBitcoin;
@@ -79,5 +80,56 @@ public class ClientTests
         await evt.ComputeIdAndSignAsync(user1.PrivateKey);
         await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None);
         
+    }
+    
+    [Fact]
+    public async Task CanUseClient2()
+    {
+        var uri = new Uri("wss://localhost:5001");
+        var client = new NostrClient(uri);
+        _ = client.Connect();
+        await client.WaitUntilConnected(CancellationToken.None);
+        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var khex = k.ToHex();
+        var user1 = CreateUser(khex);
+        var evts = new List<NostrEvent>();
+        for (int i = 0; i < 10; i++)
+        {
+            var evt = new NostrEvent()
+            {
+                Kind = 1,
+                Content = $"testing NNostr {i}",
+            };
+            await evt.ComputeIdAndSignAsync(user1.PrivateKey);
+            evts.Add(evt);
+        }
+        
+        await client.SendEventsAndWaitUntilReceived(evts.ToArray(), CancellationToken.None);
+        var subscription = new NostrSubscriptionFilter()
+        {
+            Ids = evts.Select(e => e.Id).ToArray()
+        };
+        var ct = new CancellationTokenSource();
+        var counter = 0;
+        client.EoseReceived += (sender, s) =>
+        {
+            ct.Cancel();
+        };
+        await foreach (var evt in  client.SubscribeForEvents(new[] {subscription},false, ct.Token))
+        {
+            counter++;
+        }
+        
+        Assert.Equal(10, counter);
+        
+        ct = new CancellationTokenSource();
+        counter = 0;
+        await foreach (var evt in  client.SubscribeForEvents(new[] {subscription},true, CancellationToken.None))
+        {
+            counter++;
+        }
+        
+        Assert.Equal(10, counter);
+
     }
 }
