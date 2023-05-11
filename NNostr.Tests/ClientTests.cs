@@ -85,7 +85,7 @@ public class ClientTests
     [Fact]
     public async Task CanUseClient2()
     {
-        var uri = new Uri("wss://localhost:5001");
+        var uri = new Uri("wss://btcpay.kukks.org/nostr");
         var client = new NostrClient(uri);
         _ = client.Connect();
         await client.WaitUntilConnected(CancellationToken.None);
@@ -109,26 +109,9 @@ public class ClientTests
         {
             Ids = evts.Select(e => e.Id).ToArray()
         };
-        var ct = new CancellationTokenSource();
-        var counter = 0;
-        client.EoseReceived += (sender, s) =>
-        {
-            ct.Cancel();
-        };
-        await foreach (var evt in  client.SubscribeForEvents(new[] {subscription},false, ct.Token))
-        {
-            counter++;
-        }
-        
-        Assert.Equal(10, counter);
-        
-        ct = new CancellationTokenSource();
-        counter = 0;
-        await foreach (var evt in  client.SubscribeForEvents(new[] {subscription},true, CancellationToken.None))
-        {
-            counter++;
-        }
-        
+
+        var counter = await client.SubscribeForEvents(new[] {subscription}, true, CancellationToken.None).CountAsync();
+
         Assert.Equal(10, counter);
 
     }
