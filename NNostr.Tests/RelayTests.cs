@@ -38,7 +38,6 @@ public class RelayTests:IClassFixture<WebApplicationFactory<Program>>
         }
     }
 
-    [Fact]
     public async Task CanUseReplaceableEvents()
     {
         var uri = new Uri("wss://localhost:5001");

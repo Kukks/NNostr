@@ -69,8 +69,7 @@ public class ClientTests
     {
         var uri = new Uri("wss://nostr.btcmp.com");
         var client = new NostrClient(uri);
-        _ = client.Connect();
-        await client.WaitUntilConnected(CancellationToken.None);
+        await  client.Connect();
         var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
         var khex = k.ToHex();
         var user1 = CreateUser(khex);
@@ -85,7 +84,6 @@ public class ClientTests
         
     }
     
-    [Fact]
     public async Task CanUseClient2()
     {
         var uri = new Uri("wss://localhost:5001");
