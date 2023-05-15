@@ -204,7 +204,7 @@ namespace Relay
                 removedEvents.AddRange(replacedEvents.Select(e => e.Id));
             }
 
-
+            List<NostrEventsMatched> eventsMatcheds = new();
             foreach (var nostrSubscriptionFilter in ActiveFilters)
             {
                 var matched = evt.Filter<RelayNostrEvent,RelayNostrEventTag>( nostrSubscriptionFilter.Value).ToArray();
@@ -226,7 +226,7 @@ namespace Relay
                         matchedList.Where(e => !removedEvents.Contains(e.Id))
                             .FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit).ToArray());
                 }
-                InvokeMatched(new NostrEventsMatched()
+                eventsMatcheds.Add(new NostrEventsMatched()
                 {
                     Events = matchedList,
                     FilterId = nostrSubscriptionFilter.Key
@@ -241,6 +241,7 @@ namespace Relay
             _logger.LogInformation($"Processing/Saving {evt.Length} new events: {removedEvents.Count} removed, {evtsToSave.Length} saved");
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
+            eventsMatcheds.ForEach(InvokeMatched);
             return eventResults;
         }
 

@@ -88,6 +88,7 @@ namespace Relay
                     {
                         if (Connections.TryGetValue(evt.Item1, out var conn))
                         {
+                            _logger.LogInformation($"sending message to connection {evt.connectionId}\n{evt.message}");
                             await conn.SendMessageAsync(evt.Item2, cancellationToken);
                         }
                         else

@@ -6,3 +6,4 @@ riderModule.iml
 .vs/NNostr/DesignTimeBuild
 .vs
 .idea
+*.user

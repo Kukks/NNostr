@@ -1,6 +1,6 @@
 using System.Threading.Channels;
 using LinqKit;
-
+using Microsoft.EntityFrameworkCore;
 using NBitcoin.Secp256k1;
 
 namespace NNostr.Client
@@ -228,20 +228,21 @@ namespace NNostr.Client
             var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
             if (authors?.Any() is true)
             {
-                filterQuery = filterQuery.Where(authors.Aggregate(PredicateBuilder.New<TNostrEvent>(),
-                    (current, temp) => current.Or(p => p.PublicKey.StartsWith(temp))));
+                authors = authors.Select(s => s + "%").ToArray();
+                var filterQuery2 = filterQuery.Where(x => authors.Any(y => EF.Functions.Like(x.PublicKey, y)));
+                filterQuery = filterQuery2;
             }
 
-            if (filter.EventId?.Any() is true)
+            if (filter.ReferencedEventIds?.Any() is true)
             {
                 filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
+                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.ReferencedEventIds.Contains(tag.Data[0])));
             }
 
-            if (filter.PublicKey?.Any() is true)
+            if (filter.ReferencedPublicKeys?.Any() is true)
             {
                 filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
+                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.ReferencedPublicKeys.Contains(tag.Data[0])));
             }
 
             var tagFilters = filter.GetAdditionalTagFilters().Where(pair => pair.Value.Any());
@@ -302,16 +303,16 @@ namespace NNostr.Client
                 filterQuery = filterQuery.Where(e => authors.Any(s => e.PublicKey.StartsWith(s)));
             }
 
-            if (filter.EventId?.Any() is true)
+            if (filter.ReferencedEventIds?.Any() is true)
             {
                 filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.EventId.Contains(tag.Data[0])));
+                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.ReferencedEventIds.Contains(tag.Data[0])));
             }
 
-            if (filter.PublicKey?.Any() is true)
+            if (filter.ReferencedPublicKeys?.Any() is true)
             {
                 filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.PublicKey.Contains(tag.Data[0])));
+                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.ReferencedPublicKeys.Contains(tag.Data[0])));
             }
 
             var tagFilters = filter.GetAdditionalTagFilters();
@@ -397,7 +398,7 @@ namespace NNostr.Client
             {
                 new NostrSubscriptionFilter
                 {
-                    EventId = evtIds.ToArray()
+                    Ids = evtIds.ToArray()
                 }
             }, cancellationToken);
             void OnClientOnOkReceived(object sender, (string eventId, bool success, string messafe) args)

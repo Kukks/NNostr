@@ -24,6 +24,7 @@
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="LinqKit.Core" Version="1.2.4" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.5" />
         <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.1" />
         <PackageReference Include="System.Interactive.Async" Version="6.0.1" />
         <PackageReference Include="System.Text.Json" Version="6.0.7" />

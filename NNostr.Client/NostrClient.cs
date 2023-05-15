@@ -10,7 +10,7 @@ namespace NNostr.Client
     {
         private readonly NostrClient[] _clients;
 
-        public CompositeNostrClient(Uri[] relays, Action<ClientWebSocket>? websocketConfigure = null)
+        public CompositeNostrClient(Uri[] relays, Action<WebSocket>? websocketConfigure = null)
         {
             _clients = relays.Select(r =>
             {
@@ -114,11 +114,11 @@ namespace NNostr.Client
 
     public class NostrClient : INostrClient
     {
-        protected ClientWebSocket? WebSocket;
+        protected WebSocket? WebSocket;
         
-        private readonly Uri _relay;
-        private readonly Action<ClientWebSocket>? _websocketConfigure;
-        private CancellationTokenSource? _cts;
+        protected readonly Uri _relay;
+        private readonly Action<WebSocket>? _websocketConfigure;
+        protected CancellationTokenSource? _cts;
         private readonly CancellationTokenSource _messageCts = new();
 
         private readonly Channel<string> _pendingIncomingMessages = 
@@ -127,13 +127,14 @@ namespace NNostr.Client
         private readonly Channel<string> _pendingOutgoingMessages = 
             Channel.CreateUnbounded<string>(new() { SingleReader = true });
 
-        public NostrClient(Uri relay, Action<ClientWebSocket>? websocketConfigure = null)
+        public NostrClient(Uri relay, Action<WebSocket>? websocketConfigure = null)
         {
             _relay = relay;
             _websocketConfigure = websocketConfigure;
             _ = ProcessChannel(_pendingIncomingMessages, HandleIncomingMessage, _messageCts.Token);
             _ = ProcessChannel(_pendingOutgoingMessages, HandleOutgoingMessage, _messageCts.Token);
         }
+
 
         public Task Disconnect()
         {
@@ -145,16 +146,12 @@ namespace NNostr.Client
         {
             _cts = CancellationTokenSource.CreateLinkedTokenSource(token);
 
-            while (!_cts.IsCancellationRequested)
-            {
-                await ConnectAndWaitUntilConnected(_cts.Token);
-                await ListenForMessages();
-            }
+            await ConnectAndWaitUntilConnected(_cts.Token);
         }
 
         public async IAsyncEnumerable<string> ListenForRawMessages()
         {
-            while (WebSocket.State == WebSocketState.Open && !_cts.IsCancellationRequested)
+            while (WebSocket?.State == WebSocketState.Open && _cts?.IsCancellationRequested is false)
             {
                 var bufferSize = 1000;
                 var  buffer = new byte[bufferSize];
@@ -188,12 +185,23 @@ namespace NNostr.Client
             WebSocket.Abort();
         }
 
+        private bool _listening;
+
         public async Task ListenForMessages()
         {
-            await foreach (var message in ListenForRawMessages())
+            if (_listening) return;
+            _listening = true;
+            try
             {
-                await _pendingIncomingMessages.Writer.WriteAsync(message).ConfigureAwait(false);
-                MessageReceived?.Invoke(this, message);
+                await foreach (var message in ListenForRawMessages())
+                {
+                    await _pendingIncomingMessages.Writer.WriteAsync(message).ConfigureAwait(false);
+                    MessageReceived?.Invoke(this, message);
+                }
+            }
+            finally
+            {
+                _listening = false;
             }
         }
 
@@ -311,12 +319,24 @@ namespace NNostr.Client
             _cts ??= CancellationTokenSource.CreateLinkedTokenSource(token);
 
             WebSocket?.Dispose();
-            WebSocket = new ClientWebSocket();
-            WebSocket.Options.SetRequestHeader("origin", _relay.ToString());
-            _websocketConfigure?.Invoke(WebSocket);
-            using var cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-            await WebSocket.ConnectAsync(_relay, cts.Token);
-            await WaitUntilConnected(cts.Token);
+            WebSocket = await Connect();
+            await WaitUntilConnected(_cts.Token).ContinueWith(task =>
+            {
+                if (task.Status == TaskStatus.RanToCompletion)
+                {
+                    ListenForMessages();
+                }
+            });
+        }
+
+        protected virtual async Task<WebSocket> Connect()
+        {
+            var r = new ClientWebSocket();
+            
+            r.Options.SetRequestHeader("origin", _relay.ToString());
+            _websocketConfigure?.Invoke(r);
+            await r.ConnectAsync(_relay, _cts.Token);
+            return r;
         }
 
         /// <summary>

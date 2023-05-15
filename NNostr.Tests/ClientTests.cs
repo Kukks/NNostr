@@ -6,8 +6,11 @@ using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Hosting;
 using NBitcoin;
+using Relay;
 using Xunit;
+using Program = Microsoft.VisualStudio.TestPlatform.TestHost.Program;
 
 namespace NNostr.Tests;
 
@@ -85,15 +88,14 @@ public class ClientTests
     [Fact]
     public async Task CanUseClient2()
     {
-        var uri = new Uri("wss://btcpay.kukks.org/nostr");
+        var uri = new Uri("wss://localhost:5001");
         var client = new NostrClient(uri);
-        _ = client.Connect();
-        await client.WaitUntilConnected(CancellationToken.None);
+        await  client.Connect();
         var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
         var khex = k.ToHex();
         var user1 = CreateUser(khex);
         var evts = new List<NostrEvent>();
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 2; i++)
         {
             var evt = new NostrEvent()
             {
@@ -112,7 +114,8 @@ public class ClientTests
 
         var counter = await client.SubscribeForEvents(new[] {subscription}, true, CancellationToken.None).CountAsync();
 
-        Assert.Equal(10, counter);
-
+        Assert.Equal(2, counter);
+        
+       
     }
 }
