@@ -162,8 +162,9 @@ namespace Relay
                 var replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
+                    
                     replacedEvents.AddRange(context.Events.Where(evt2 =>
-                        evt2.PublicKey.Equals(eventsToReplace.Id) && eventsToReplace.Kind == evt2.Kind &&
+                        evt2.PublicKey.Equals(eventsToReplace.PublicKey) && eventsToReplace.Kind == evt2.Kind &&
                         evt2.CreatedAt < eventsToReplace.CreatedAt));
                 }
 
@@ -181,7 +182,7 @@ namespace Relay
                     var dValue = eventsToReplace.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? "";
 
                     var caluse = PredicateBuilder.New<RelayNostrEvent>()
-                        .And(@event => @event.PublicKey == eventsToReplace.Id)
+                        .And(@event => @event.PublicKey == eventsToReplace.PublicKey)
                         .And(@event => @event.Kind == eventsToReplace.Kind)
                         .And(@event => @event.CreatedAt < eventsToReplace.CreatedAt);
                         // .And(@event =>

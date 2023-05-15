@@ -70,6 +70,7 @@ public class RelayTests:IClassFixture<WebApplicationFactory<Program>>
             Content = $"testing NNostr replaceable2",
         };
         
+        await replaceableEvent.ComputeIdAndSignAsync(p);
         await client.SendEventsAndWaitUntilReceived(new []{replaceableEvent}, CancellationToken.None);
         Assert.Equal("testing NNostr replaceable2", (await client.SubscribeForEvents(new[]
         {
