@@ -128,7 +128,6 @@ namespace Relay
                 evt = evt.Where(e => !notvalid.Contains(e)).ToArray();
             }
 
-            _logger.LogInformation($"Processing/Saving {evt.Length} new events");
 
             var removedEvents = new List<string>();
             if (_options.CurrentValue.EnableNip09)
@@ -237,6 +236,9 @@ namespace Relay
             await context.Events.AddRangeAsync(
                 evtsToSave.Select(@event => 
                     JsonSerializer.Deserialize<RelayNostrEvent>( JsonSerializer.Serialize(@event)))!);
+            
+            
+            _logger.LogInformation($"Processing/Saving {evt.Length} new events: {removedEvents.Count} removed, {evtsToSave.Length} saved");
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
             return eventResults;

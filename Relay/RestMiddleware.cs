@@ -23,7 +23,8 @@ public class RestMiddleware : IMiddleware
     private readonly BTCPayServerService _btcPayServerService;
     private readonly AdminChatBot _adminChatBot;
 
-    public RestMiddleware(IOptionsMonitor<RelayOptions> options, NostrEventService nostrEventService, BTCPayServerService btcPayServerService, AdminChatBot adminChatBot)
+    public RestMiddleware(IOptionsMonitor<RelayOptions> options, NostrEventService nostrEventService,
+        BTCPayServerService btcPayServerService, AdminChatBot adminChatBot)
     {
         _options = options;
         _nostrEventService = nostrEventService;
@@ -50,13 +51,14 @@ public class RestMiddleware : IMiddleware
                 context.Response.ContentType = "application/json";
 
                 await context.Response.WriteAsync(JsonSerializer.Serialize(evts));
-            }else if (context.Request.Path.Value?.EndsWith("btcpay/webhook", StringComparison.InvariantCultureIgnoreCase) is
-                      true && context.Request.Headers.TryGetValue("BTCPay-Sig", out var signature))
+            }
+            else if (context.Request.Path.Value?.EndsWith("btcpay/webhook", StringComparison.InvariantCultureIgnoreCase)
+                         is
+                         true && context.Request.Headers.TryGetValue("BTCPay-Sig", out var signature))
             {
                 var evt = JsonConvert.DeserializeObject<WebhookInvoiceEvent>(body);
                 if (!string.IsNullOrEmpty(_options.CurrentValue.BTCPayServerWebhookSecret))
                 {
-                    
                     signature = signature.ToString();
                     var expectedSig =
                         $"sha256={Encoders.Hex.EncodeData(NBitcoin.Crypto.Hashes.HMACSHA256(Encoding.UTF8.GetBytes(_options.CurrentValue.BTCPayServerWebhookSecret), Encoding.UTF8.GetBytes(body)))}";
@@ -69,17 +71,19 @@ public class RestMiddleware : IMiddleware
                         return;
                     }
                 }
-                if(evt.Type == WebhookEventType.InvoiceSettled && evt.StoreId == _options.CurrentValue.BTCPayServerStoreId)
+
+                if (evt.Type == WebhookEventType.InvoiceSettled &&
+                    evt.StoreId == _options.CurrentValue.BTCPayServerStoreId)
                 {
-                    
                     var result = await _btcPayServerService.GenerateBalanceTransaction(evt.InvoiceId);
                     if (result is not null)
                     {
-                        _ = _adminChatBot.ReplyToEvent(null, result.Value.balanceId, $"Your balance was just updated to {result.Value.balance}");
+                        _ = _adminChatBot.ReplyToEvent(null, result.Value.balanceId,
+                            $"Your balance was just updated to {result.Value.balance}");
                     }
                 }
             }
-            
+
             return;
         }
 
