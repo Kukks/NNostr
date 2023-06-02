@@ -27,7 +27,12 @@ namespace NNostr.Client
 
         public static string ToHex(this Span<byte> bytes) 
         {
-            return Convert.ToHexString(bytes).ToLowerInvariant();
+            #if NETSTANDARD
+                return string.Join(string.Empty, Array.ConvertAll(bytes.ToArray(), b => b.ToString("X2")));
+            #else
+            
+                return Convert.ToHexString(bytes).ToLowerInvariant();
+            #endif
         }
     }
 }

@@ -1,5 +1,4 @@
 #if NETSTANDARD
-using System.Runtime.Versioning;
 using System.Security.Cryptography;
 using System.Text;
 using NNostr.Client.Crypto;
@@ -7,9 +6,6 @@ using NNostr.Client.Crypto;
 namespace NNostr.Client;
 public class NetStandardAesEncryptor : IAesEncryption
 {
-
-    [UnsupportedOSPlatform("browser")]
-
     public ValueTask<(byte[] CipherText, byte[] Iv)> EncryptAsync(byte[] plainText, byte[] key)
     {
         byte[] cipherData;

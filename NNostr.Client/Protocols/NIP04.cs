@@ -14,7 +14,12 @@ namespace NNostr.Client;
 /// </summary>
 public static class NIP04
 {
-    private static IAesEncryption _platformAesImplementation = new PlatformProvidedAes();
+    private static IAesEncryption _platformAesImplementation =
+#if NETSTANDARD
+        new NetStandardAesEncryptor();
+#else
+        new PlatformProvidedAes();
+#endif
 
     /// <summary>
     /// Decrypts given <paramref name="nostrEvent"/> encrypted with AES-CBC-256 using specified key.

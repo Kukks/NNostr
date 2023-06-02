@@ -1,6 +1,4 @@
 using System.Threading.Channels;
-using LinqKit;
-using Microsoft.EntityFrameworkCore;
 using NBitcoin.Secp256k1;
 
 namespace NNostr.Client
@@ -198,71 +196,7 @@ namespace NNostr.Client
             return e.Tags.Where(tag => tag.TagIdentifier == identifier).Select(tag => tag.Data.First()).ToArray();
         }
 
-        public static IQueryable<TNostrEvent> Filter<TNostrEvent, TEventTag>(this IQueryable<TNostrEvent> events,
-            NostrSubscriptionFilter filter) where TNostrEvent : BaseNostrEvent<TEventTag>
-            where TEventTag : NostrEventTag
-        {
-            var filterQuery = events;
 
-            if (filter.Ids?.Any() is true)
-            {
-                filterQuery = filterQuery.Where(filter.Ids.Aggregate(PredicateBuilder.New<TNostrEvent>(),
-                    (current, temp) => current.Or(p => p.Id.StartsWith(temp))));
-            }
-
-            if (filter.Kinds?.Any() is true)
-            {
-                filterQuery = filterQuery.Where(e => filter.Kinds.Contains(e.Kind));
-            }
-
-            if (filter.Since != null)
-            {
-                filterQuery = filterQuery.Where(e => e.CreatedAt > filter.Since);
-            }
-
-            if (filter.Until != null)
-            {
-                filterQuery = filterQuery.Where(e => e.CreatedAt < filter.Until);
-            }
-
-            var authors = filter.Authors?.Where(s => !string.IsNullOrEmpty(s))?.ToArray();
-            if (authors?.Any() is true)
-            {
-                authors = authors.Select(s => s + "%").ToArray();
-                var filterQuery2 = filterQuery.Where(x => authors.Any(y => EF.Functions.Like(x.PublicKey, y)));
-                filterQuery = filterQuery2;
-            }
-
-            if (filter.ReferencedEventIds?.Any() is true)
-            {
-                filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "e" && filter.ReferencedEventIds.Contains(tag.Data[0])));
-            }
-
-            if (filter.ReferencedPublicKeys?.Any() is true)
-            {
-                filterQuery = filterQuery.Where(e =>
-                    e.Tags.Any(tag => tag.TagIdentifier == "p" && filter.ReferencedPublicKeys.Contains(tag.Data[0])));
-            }
-
-            var tagFilters = filter.GetAdditionalTagFilters().Where(pair => pair.Value.Any());
-          
-
-
-            foreach (var tagFilter in tagFilters)
-            {
-                filterQuery = filterQuery
-                    .Where(e => e.Tags.Any(tag =>
-                        tag.TagIdentifier == tagFilter.Key && tagFilter.Value.Contains(tag.Data[0])));
-            }
-
-            if (filter.Limit is not null)
-            {
-                filterQuery = filterQuery.OrderByDescending(e => e.CreatedAt).Take(filter.Limit.Value);
-            }
-
-            return filterQuery;
-        }
 
         public static IEnumerable<TNostrEvent>
             FilterByLimit<TNostrEvent, TEventTag>(this IEnumerable<TNostrEvent> events, int? limitFilter)
@@ -331,8 +265,8 @@ namespace NNostr.Client
             var subscriptionId = Guid.NewGuid().ToString();
             var _receivedEvents = Channel.CreateUnbounded<NostrEvent>(new() {SingleReader = true, SingleWriter = true});
             
-            var tcs = new TaskCompletionSource();
-            cancellationToken.Register(() => tcs.TrySetResult());
+            var tcs = new TaskCompletionSource<bool>();
+            cancellationToken.Register(() => tcs.TrySetResult(true));
             void OnClientOnEventsReceived(object? sender, (string subscriptionId, NostrEvent[] events) args)
                 {
                     if (args.subscriptionId == subscriptionId)
@@ -347,7 +281,7 @@ namespace NNostr.Client
             {
                 if (s == subscriptionId)
                 {
-                    tcs.TrySetResult();
+                    tcs.TrySetResult(true);
                 }
             }
             if (stopWhenEoseSent)
@@ -391,7 +325,7 @@ namespace NNostr.Client
             // create a subscription listening to event ids
             // send events
             // wait until all events are received either via subscription ro via ok received
-            var tcs = new TaskCompletionSource();
+            var tcs = new TaskCompletionSource<bool>();
             var evtIds = events.Select(e => e.Id).ToHashSet();
             var subId = Guid.NewGuid().ToString();
             await client.CreateSubscription(subId, new[]
@@ -405,7 +339,7 @@ namespace NNostr.Client
             {
                 if (evtIds.Remove(args.eventId) && !evtIds.Any())
                 {
-                    tcs.TrySetResult();
+                    tcs.TrySetResult(true);
                 }
             }
             void OnClientOnEventsReceived(object sender, (string subscriptionId, NostrEvent[] events) args)
@@ -416,7 +350,7 @@ namespace NNostr.Client
                     {
                         if (evtIds.Remove(nostrEvent.Id) && !evtIds.Any())
                         {
-                            tcs.TrySetResult();
+                            tcs.TrySetResult(true);
                             break;
                         }
                     }
@@ -430,7 +364,19 @@ namespace NNostr.Client
                 {
                     await client.PublishEvent(evt, cancellationToken);
                 }
+                #if NETSTANDARD
+
+                await Task.WhenAny(tcs.Task, new Task(async o =>
+                {
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        await Task.Delay(1000, cancellationToken);
+                    }
+                }, cancellationToken));
+#else
+
                 await tcs.Task.WaitAsync(cancellationToken);
+#endif
             }
             finally
             {
@@ -441,3 +387,28 @@ namespace NNostr.Client
         }
     }
 }
+
+#if NETSTANDARD
+public static class Convert
+{
+    public static byte[] FromHexString(string hexString)
+    {
+        var bytes = new byte[hexString.Length / 2];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            bytes[i] = System.Convert.ToByte(hexString.Substring(i * 2, 2), 16);
+        }
+
+        return bytes;
+    }
+
+    public static byte[] FromBase64String(string base64String)
+    {
+        return System.Convert.FromBase64String(base64String);
+    }
+    public static string ToBase64String(byte[] bytes)
+    {
+        return System.Convert.ToBase64String(bytes);
+    }
+}
+#endif
