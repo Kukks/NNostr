@@ -16,9 +16,6 @@ namespace Relay
 {
     public class NostrEventService
     {
-        private ConcurrentDictionary<string, RelayNostrEvent[]> CachedFilterResults =
-            new();
-
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
         private readonly IOptionsMonitor<RelayOptions> _options;
@@ -214,19 +211,6 @@ namespace Relay
                 var matchedList = matched.ToArray();
                 _logger.LogInformation(
                     $"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
-                if (CachedFilterResults.TryGetValue(nostrSubscriptionFilter.Key, out var currentFilterValues))
-                {
-                    var updatedResult = currentFilterValues.Concat(matchedList)
-                        .Where(e => !removedEvents.Contains(e.Id)).FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit)
-                        .ToArray();
-                    CachedFilterResults[nostrSubscriptionFilter.Key] = updatedResult;
-                }
-                else
-                {
-                    CachedFilterResults.TryAdd(nostrSubscriptionFilter.Key,
-                        matchedList.Where(e => !removedEvents.Contains(e.Id))
-                            .FilterByLimit<RelayNostrEvent, RelayNostrEventTag>(nostrSubscriptionFilter.Value.Limit).ToArray());
-                }
                 eventsMatcheds.Add(new NostrEventsMatched()
                 {
                     Events = matchedList,
@@ -252,7 +236,7 @@ namespace Relay
             ActiveFilters.TryAdd(id, filter);
             return new NostrEventsMatched()
             {
-                Events = await CachedFilterResults.GetOrAddAsync(id, GetFromDB),
+                Events = await GetFromDB(id),
                 FilterId = id,
                 InitialRequest = true
             };
@@ -269,7 +253,7 @@ namespace Relay
             foreach (var nostrSubscriptionFilter in filter)
             {
                 var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().AsSpan().ToHex();
-                result.AddRange(await CachedFilterResults.GetOrAddAsync(id, s => GetFromDB(nostrSubscriptionFilter)));
+                result.AddRange(await GetFromDB(nostrSubscriptionFilter));
             }
 
             return result.Distinct().ToArray();
@@ -301,7 +285,6 @@ namespace Relay
         {
             if (!ActiveFilters.Remove(removedFilter, out _)) return;
             _logger.LogInformation($"Removing filter: {removedFilter}");
-            CachedFilterResults.Remove(removedFilter, out _);
         }
     }
 }
