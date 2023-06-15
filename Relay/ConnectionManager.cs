@@ -42,40 +42,22 @@ namespace Relay
 
         private async Task NostrEventServiceOnEventsMatched(NostrEventsMatched e)
         {
-
-            var subscriptions = _stateManager.SubscriptionToFilter.GetKeysContainingValue(e.FilterId);
-            var connections = _stateManager.ConnectionToSubscriptions.GetKeysContainingValue(subscriptions);;
-
-            foreach (var connectionId in connections)
+            if (!Connections.ContainsKey(e.ConnectionId))
             {
-                
-                if (!_stateManager.ConnectionToSubscriptions.TryGetValues(connectionId, out var connectionSubscriptions))
-                {
-                    continue;
-                }
-                if (!Connections.ContainsKey(connectionId))
-                {
-                    _stateManager.RemoveConnection(connectionId, out var orphanedFilters);
-                    orphanedFilters.ForEach(x => _nostrEventService.RemoveFilter(x));
-                    continue;
-                }
-                foreach (var subscription in subscriptions)
-                {
-                    if (connectionSubscriptions.Contains(subscription))
-                    {
-                        foreach (var nostrEvent in e.Events)
-                        {
-                            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
-                                JsonSerializer.Serialize(new object[]
-                                {
-                                    "EVENT", subscription, nostrEvent
-                                })));
-                        }
-                        e.OnEventsSent?.Invoke((connectionId, e));
-                    }
-                }
-
+                _stateManager.RemoveConnection(e.ConnectionId);
+                return;
             }
+
+            foreach (var nostrEvent in e.Events)
+            {
+                await _stateManager.PendingMessages.Writer.WriteAsync((e.ConnectionId,
+                    JsonSerializer.Serialize(new object[]
+                    {
+                        "EVENT",
+                        e.SubscriptionId, nostrEvent
+                    })));
+            }
+            e.OnSent.SetResult();
         }
 
         private async Task ProcessSendMessages(CancellationToken cancellationToken)

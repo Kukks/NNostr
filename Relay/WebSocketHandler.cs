@@ -31,7 +31,7 @@ namespace Relay
 
         public virtual async Task OnConnected(WebSocket socket)
         {
-            var newConnection = Guid.NewGuid().ToString();
+            var newConnection = Guid.NewGuid().ToString().Replace("-", "");
             WebSocketWebSocketConnectionManager.Connections.TryAdd(newConnection, socket);
             _logger.LogInformation($"New connection: {newConnection}");
             NewConnection?.Invoke(this, newConnection);
@@ -43,11 +43,7 @@ namespace Relay
 
             if (id is not null)
             {
-                _stateManager.RemoveConnection(id, out var orphanedFilters);
-                foreach (var orphanedFilter in orphanedFilters)
-                {
-                    _nostrEventService.RemoveFilter(orphanedFilter);
-                }
+                _stateManager.RemoveConnection(id);
             }
 
             _logger.LogInformation($"Removed connection: {id}");

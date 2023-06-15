@@ -44,7 +44,7 @@ public class RestMiddleware : IMiddleware
             if (context.Request.Path.Value?.EndsWith("api/req", StringComparison.InvariantCultureIgnoreCase) is true)
             {
                 var filters = JsonSerializer.Deserialize<NostrSubscriptionFilter[]>(body);
-                var evts = await _nostrEventService.FetchData(filters);
+                var evts = await _nostrEventService.GetFromDB(filters);
 
                 context.Response.Clear();
                 context.Response.StatusCode = 200;

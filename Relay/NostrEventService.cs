@@ -19,18 +19,17 @@ namespace Relay
         private readonly IDbContextFactory<RelayDbContext> _dbContextFactory;
         private readonly ILogger<NostrEventService> _logger;
         private readonly IOptionsMonitor<RelayOptions> _options;
+        private readonly StateManager _stateManager;
         public event EventHandler<NostrEventsMatched>? EventsMatched;
         public event EventHandler<RelayNostrEvent[]>? NewEvents;
 
-        private ConcurrentDictionary<string, NostrSubscriptionFilter> ActiveFilters { get; set; } =
-            new();
-
         public NostrEventService(IDbContextFactory<RelayDbContext> dbContextFactory, ILogger<NostrEventService> logger,
-            IOptionsMonitor<RelayOptions> options)
+            IOptionsMonitor<RelayOptions> options, StateManager stateManager)
         {
             _dbContextFactory = dbContextFactory;
             _logger = logger;
             _options = options;
+            _stateManager = stateManager;
         }
 
         private long ComputeCost(RelayNostrEvent evt, out bool isToAdmin)
@@ -95,11 +94,6 @@ namespace Relay
                     {
                         CurrentBalance = _options.CurrentValue.PubKeyCost * -1,
                     };
-                    // if (authorBalance.CurrentBalance < 0 ||
-                    //     (authorBalance.CurrentBalance == 0 && _options.CurrentValue.EventCost > 0))
-                    // {
-                    //     notvalid.AddRange(eventsGroupedByAuthorItem);
-                    // }
                     foreach (var eventsGroupedByAuthorItemEvt in eventsGroupedByAuthorItem)
                     {
                         var cost = ComputeCost(eventsGroupedByAuthorItemEvt, out var isToAdmin);
@@ -182,20 +176,12 @@ namespace Relay
                         .And(@event => @event.PublicKey == eventsToReplace.PublicKey)
                         .And(@event => @event.Kind == eventsToReplace.Kind)
                         .And(@event => @event.CreatedAt < eventsToReplace.CreatedAt);
-                        // .And(@event =>
-                        //     (@event.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ??
-                        //     "") == dValue);
 
                         
                     var toreplace =  await context.Events.Where(caluse).ToListAsync();
                     toreplace = toreplace.Where(@event => dValue == (
                         @event.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? "")).ToList();
                     replacedEvents.AddRange(toreplace);
-                    // replacedEvents.AddRange(context.Events.Where(evt2 =>
-                    //     evt2.PublicKey.Equals(eventsToReplace.Id) && 
-                    //     eventsToReplace.Kind == evt2.Kind &&
-                    //     dValue== (evt2.GetTaggedData<RelayNostrEvent,RelayNostrEventTag>("d").FirstOrDefault()??"") &&
-                    //     evt2.CreatedAt < eventsToReplace.CreatedAt));
                 }
 
                 context.Events.RemoveRange(replacedEvents);
@@ -203,20 +189,29 @@ namespace Relay
             }
 
             List<NostrEventsMatched> eventsMatcheds = new();
-            foreach (var nostrSubscriptionFilter in ActiveFilters)
+            _stateManager.ConnectionSubscriptionsToFilters.Keys.ForEach(pair =>
             {
-                var matched = evt.Filter<RelayNostrEvent,RelayNostrEventTag>( nostrSubscriptionFilter.Value).ToArray();
-                if (!matched.Any()) continue;
-
-                var matchedList = matched.ToArray();
-                _logger.LogInformation(
-                    $"Updated filter {nostrSubscriptionFilter.Key} with {matchedList.Length} new events");
-                eventsMatcheds.Add(new NostrEventsMatched()
+                if (!_stateManager.ConnectionSubscriptionsToFilters.TryGetValues(pair, out var values)) return;
+                foreach (var subscriptionFilter in values)
                 {
-                    Events = matchedList,
-                    FilterId = nostrSubscriptionFilter.Key
-                });
-            }
+                        
+                    var matched = evt.Filter<RelayNostrEvent,RelayNostrEventTag>( subscriptionFilter).ToArray();
+                    if (!matched.Any()) continue;
+                    _logger.LogInformation(
+                        $"Updated connection subscription {pair} with {matched.Length} new events");
+                            
+                    var connectionId = pair[..pair.IndexOf('-')];
+                    var subscriptionId = pair[(pair.IndexOf('-')+1)..];
+                    eventsMatcheds.Add(new NostrEventsMatched()
+                    {
+                        Events = matched,
+                        ConnectionId = connectionId,
+                        SubscriptionId = subscriptionId
+                    });
+                }
+            });
+                
+               
             eventResults.AddRange(evtsToSave.Select(@event => (@event.Id, true, "")));
             await context.Events.AddRangeAsync(
                 evtsToSave.Select(@event => 
@@ -230,61 +225,18 @@ namespace Relay
             return eventResults;
         }
 
-        public async Task<NostrEventsMatched> AddFilter(NostrSubscriptionFilter filter)
-        {
-            var id = JsonSerializer.Serialize(filter).ComputeSha256Hash().AsSpan().ToHex();
-            ActiveFilters.TryAdd(id, filter);
-            return new NostrEventsMatched()
-            {
-                Events = await GetFromDB(id),
-                FilterId = id,
-                InitialRequest = true
-            };
-        }
-
         public void InvokeMatched(NostrEventsMatched eventsMatched)
         {
             EventsMatched?.Invoke(this, eventsMatched);
         }
 
-        public async Task<RelayNostrEvent[]> FetchData(params NostrSubscriptionFilter[] filter)
-        {
-            var result = new List<RelayNostrEvent>();
-            foreach (var nostrSubscriptionFilter in filter)
-            {
-                var id = JsonSerializer.Serialize(nostrSubscriptionFilter).ComputeSha256Hash().AsSpan().ToHex();
-                result.AddRange(await GetFromDB(nostrSubscriptionFilter));
-            }
-
-            return result.Distinct().ToArray();
-        }
-
-        private async Task<RelayNostrEvent[]> GetFromDB(string filterId)
-        {
-            if (ActiveFilters.TryGetValue(filterId, out var filter))
-            {
-                return await GetFromDB(filter);
-            }
-
-            throw new ArgumentOutOfRangeException(nameof(filterId), "Filter is not active");
-        }
-
-        private async Task<RelayNostrEvent[]> GetFromDB(NostrSubscriptionFilter filter)
+        public  async Task<RelayNostrEvent[]> GetFromDB(NostrSubscriptionFilter[] filter)
         {
             await using var context = await _dbContextFactory.CreateDbContextAsync();
-            var result =  await context.Events
+            return await context.Events
                 .Include(e => e.Tags)
                 .Where(e => !e.Deleted)
-                .Filter<RelayNostrEvent,RelayNostrEventTag>(filter)
-                .ToArrayAsync();
-
-            return result.OrderBy(e => e.CreatedAt).ToArray();
-        }
-
-        public void RemoveFilter(string removedFilter)
-        {
-            if (!ActiveFilters.Remove(removedFilter, out _)) return;
-            _logger.LogInformation($"Removing filter: {removedFilter}");
+                .Filter<RelayNostrEvent, RelayNostrEventTag>(filter).ToArrayAsync();
         }
     }
 }

@@ -39,6 +39,12 @@ public class ConcurrentMultiDictionary<TKey, TValue>
             spinWait.SpinOnce();
         }
     }
+    
+    public bool AddOrReplace(TKey key, TValue value)
+    {
+        Remove(key, value);
+        return Add(key, value);
+    }
 
     public bool Remove(TKey key)
     {

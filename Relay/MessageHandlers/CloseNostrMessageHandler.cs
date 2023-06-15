@@ -30,11 +30,7 @@ namespace Relay
             var json = JsonDocument.Parse(msg).RootElement;
 
             var id = $"{connectionId}_{json[1].GetString()}";
-            _stateManager.RemoveSubscription(connectionId, id, out var orphanedFilters);
-            foreach (var orphanedFilter in orphanedFilters)
-            {
-                _nostrEventService.RemoveFilter(orphanedFilter);
-            }
+            _stateManager.RemoveSubscription(connectionId, id);
         }
     }
 }

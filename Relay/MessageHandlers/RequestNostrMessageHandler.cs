@@ -44,80 +44,51 @@ namespace Relay
 
             var id = json[1].GetString();
             var filters = new List<NostrSubscriptionFilter>();
-            for (int i = 2; i < json.GetArrayLength(); i++)
+            for (var i = 2; i < json.GetArrayLength(); i++)
             {
                 filters.Add(JsonSerializer.Deserialize<NostrSubscriptionFilter>(json[i].GetRawText()));
             }
 
-            var results = new List<NostrEventsMatched>();
-            _stateManager.SubscriptionToFilter.TryGetValues(id, out var existingFilters);
-            _stateManager.SubscriptionToFilter.Remove(id);
-
-            var newids = new List<string>();
-            foreach (var filter in filters)
+            _stateManager.AddSubscription(connectionId, id, filters.ToArray());
+            var matchedEvents = await _nostrEventService.GetFromDB(filters.ToArray());
+            if (matchedEvents.Length > 0)
             {
-                var x = await _nostrEventService.AddFilter(filter);
-                results.Add(x);
-                newids.Add(x.FilterId);
-                if (!_stateManager.ConnectionToFilter.Contains(connectionId, x.FilterId))
-                    _stateManager.ConnectionToFilter.Add(connectionId, x.FilterId);
-                if (!_stateManager.FilterToConnection.Contains(x.FilterId, connectionId))
-                    _stateManager.FilterToConnection.Add(x.FilterId, connectionId);
-                _stateManager.SubscriptionToFilter.Add(id, x.FilterId);
-            }
-
-            _stateManager.ConnectionToSubscriptions.Add(connectionId, id);
-
-            var removedFilters = existingFilters?.Except(newids);
-            if (removedFilters is not null)
-                foreach (var removedFilter in removedFilters)
+                var matched = new NostrEventsMatched()
                 {
-                    _stateManager.FilterToConnection.Remove(removedFilter);
-                    if (!_stateManager.ConnectionToFilter.ContainsValue(removedFilter))
-                    {
-                        _nostrEventService.RemoveFilter(removedFilter);
-                    }
-                }
+                    Events = matchedEvents,
+                    ConnectionId = connectionId,
+                    SubscriptionId = id
+                };
 
-            TaskCompletionSource tcsForEose = new();
-            List<string> waitingForFilters = new List<string>(results.Select(matched => matched.FilterId));
-            results.ForEach(matched =>
-            {
                 if (_options.CurrentValue.EnableNip15)
                 {
-                    matched.OnEventsSent = tuple =>
+                    if (matched.Events.Any())
                     {
-                        if (waitingForFilters.Remove(tuple.Item2.FilterId) && waitingForFilters.Count == 0)
-                        {
-                            tcsForEose.SetResult();
-                        }
-                    };
+                    }
+
+                    matched.OnSent.Task.ContinueWith(task =>
+                    {
+                        return _stateManager.PendingMessages.Writer.WaitToWriteAsync().AsTask().ContinueWith(_ =>
+                            SendEOSE(connectionId, id));
+                    });
                 }
 
                 _nostrEventService.InvokeMatched(matched);
-            });
-            if (_options.CurrentValue.EnableNip15)
-            {
-                var task = tcsForEose.Task.WaitAsync(TimeSpan.FromMinutes(5)).ContinueWith(_ => _stateManager.PendingMessages.Writer.WaitToWriteAsync().AsTask()).ContinueWith(_ => 
-                     _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
-                        JsonSerializer.Serialize(new[]
-                        {
-                            "EOSE",
-                            id
-                        }))));
-                _ = Task.Run(async () =>
-                {
-                    try
-                    {
-                        await task;
-                    }
-                    catch (Exception e)
-                    {
-                        _logger.LogError(e,
-                            $"Did not get confirmation of event stream ending to send EOSE for subscription {id} of connection {connectionId}");
-                    }
-                });
             }
+            else if (_options.CurrentValue.EnableNip15)
+            {
+                await SendEOSE(connectionId, id);
+            }
+        }
+
+        private async Task SendEOSE(string connectionId, string subscriptionId)
+        {
+            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
+                JsonSerializer.Serialize(new[]
+                {
+                    "EOSE",
+                    subscriptionId
+                })));
         }
     }
 }

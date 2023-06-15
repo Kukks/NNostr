@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using LinqKit;
 using NBitcoin.Secp256k1;
 
 namespace NNostr.Client
@@ -206,6 +207,19 @@ namespace NNostr.Client
         }
 
         public static IEnumerable<TNostrEvent> Filter<TNostrEvent, TEventTag>(this IEnumerable<TNostrEvent> events,
+            NostrSubscriptionFilter[] filters) where TNostrEvent : BaseNostrEvent<TEventTag>
+            where TEventTag : NostrEventTag
+        {
+            var results = filters.Select(filter =>
+            {
+                var res = events.Filter<TNostrEvent, TEventTag>(filter);
+                return FilterByLimit<TNostrEvent, TEventTag>(res, filter.Limit);
+            });
+            // union the results
+            return results.Aggregate((a, b) => a.Union(b));
+        }
+        
+        public static IEnumerable<TNostrEvent> Filter<TNostrEvent, TEventTag>(this IEnumerable<TNostrEvent> events,
             NostrSubscriptionFilter filter) where TNostrEvent : BaseNostrEvent<TEventTag>
             where TEventTag : NostrEventTag
         {
@@ -286,7 +300,6 @@ namespace NNostr.Client
             }
             if (stopWhenEoseSent)
             {
-                    
                 client.EoseReceived += OnClientOnEoseReceived;
             }
             client.EventsReceived += OnClientOnEventsReceived;

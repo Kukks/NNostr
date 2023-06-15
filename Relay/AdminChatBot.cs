@@ -151,8 +151,7 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                             case "info":
                                 await ReplyToEvent(evt.Id,evt.PublicKey, @"
 Active connections: " + _connectionManager.Connections.Count + @"
-Active subscriptions: " + _stateManager.SubscriptionToFilter.Count + @"
-Active filters: " + _stateManager.FilterToConnection.Count );
+Active subscriptions: " + _stateManager.ConnectionSubscriptionsToFilters.Count );
                                 break;
                             case "config":
                                 await ReplyToEvent(evt.Id,evt.PublicKey, JsonSerializer.Serialize(_options.CurrentValue));
