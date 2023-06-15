@@ -15,7 +15,7 @@ jobs:
           dotnet-version: 7.0.x
 
       - name: Start containers
-        run: docker-compose -f "NNostr.Tests/docker-compose.yml" up -d
+        run: docker-compose -f "Relay/docker-compose.yml" up -d
       # Run tests
       - name: Test
         run: dotnet test
