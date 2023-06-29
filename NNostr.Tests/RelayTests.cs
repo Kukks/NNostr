@@ -1,48 +1,26 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.WebSockets;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
-using Microsoft.Extensions.Configuration;
 using NBitcoin;
 using NBitcoin.Secp256k1;
 using NNostr.Client;
-using Relay;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace NNostr.Tests;
 
-public class RelayTestServer : WebApplicationFactory<Program>
-{
-    private readonly Dictionary<string, string> _config;
-
-    public RelayTestServer(Dictionary<string, string>? config = null)
-    {
-        _config = config ?? new();
-    }
-
-    public RelayTestServer(bool newDb = false, Dictionary<string, string>? config = null)
-    {
-        _config = config ?? new();
-        _config.AddOrReplace("CONNECTIONSTRINGS:RelayDatabase",
-            $"User ID=postgres;Host=127.0.0.1;Port=65466;Database=relaytest-{Guid.NewGuid()};persistsecurityinfo=True");
-    }
-
-    protected override void ConfigureWebHost(IWebHostBuilder builder)
-    {
-        base.ConfigureWebHost(builder);
-        builder.ConfigureAppConfiguration(configurationBuilder => configurationBuilder.AddInMemoryCollection(_config));
-    }
-}
-
 public class RelayTests
 {
-    public RelayTests()
+    private readonly ITestOutputHelper _output;
+
+    public RelayTests(ITestOutputHelper output )
     {
+        _output = output;
     }
 
     public class TestServerClient : NostrClient
@@ -64,7 +42,7 @@ public class RelayTests
     [Fact]
     public async Task CanUseBasics()
     {
-        await using var server = new RelayTestServer(true);
+        await using var server = new RelayTestServer(_output,true);
         var client = new TestServerClient(server.Server);
         await client.Connect();
         var p = ECPrivKey.Create(RandomUtils.GetBytes(32));
@@ -116,7 +94,7 @@ public class RelayTests
     [Fact]
     public async Task CanUseReplaceableEvents()
     {
-        await using var server = new RelayTestServer(true);
+        await using var server = new RelayTestServer(_output, true);
         var client = new TestServerClient(server.Server);
         await client.Connect();
         var p = ECPrivKey.Create(RandomUtils.GetBytes(32));
@@ -147,13 +125,140 @@ public class RelayTests
 
         await replaceableEvent.ComputeIdAndSignAsync(p);
         await client.SendEventsAndWaitUntilReceived(new[] {replaceableEvent}, CancellationToken.None);
-        Assert.Equal("testing NNostr replaceable2", (await client.SubscribeForEvents(new[]
+        var evts = await client.SubscribeForEvents(new[]
         {
             new NostrSubscriptionFilter()
             {
                 Kinds = new[] {15000},
                 Authors = new[] {pub}
             }
-        }, true, CancellationToken.None).SingleAsync()).Content);
+        }, true, CancellationToken.None).ToArrayAsync();
+        
+        Assert.Equal("testing NNostr replaceable2", Assert.Single(evts).Content);
     }
+    
+    [Fact]
+public async Task CanHandleSubscriptionsAndFilters()
+{
+    await using var server = new RelayTestServer(_output, true);
+    var client = new TestServerClient(server.Server);
+    await client.Connect();
+
+    var user1 = ECPrivKey.Create(RandomUtils.GetBytes(32));
+    var user1Pub = user1.CreateXOnlyPubKey().ToHex();
+    var user2 = ECPrivKey.Create(RandomUtils.GetBytes(32));
+    var user2Pub = user2.CreateXOnlyPubKey().ToHex();
+
+    var filtersForSubscription1 = new[]
+    {
+        new NostrSubscriptionFilter()
+        {
+            Authors = new[] {user1Pub},
+            Kinds = new[] {1, 2, 3},
+            Limit = 2
+        },
+        new NostrSubscriptionFilter()
+        {
+            Authors = new[] {user2Pub},
+            Kinds = new[] {4, 5, 6},
+            Limit = 1
+        }
+    };
+
+    var eventsThatFitSubscriptionFilter1 = new List<NostrEvent>()
+    {
+        await new NostrEvent()
+        {
+            Kind = 1,
+            Content = "test content",
+        }.ComputeIdAndSignAsync(user1),
+        
+        await new NostrEvent()
+        {
+            Kind = 2,
+            Content = "test content 2",
+        }.ComputeIdAndSignAsync(user1),
+        await new NostrEvent()
+        {
+            Kind = 3,
+            Content = "test content 3",
+            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+        }.ComputeIdAndSignAsync(user1)
+    };
+    
+    var eventsThatFitSubscriptionFilter2 = new List<NostrEvent>()
+    {
+        
+        await new NostrEvent()
+        {
+            Kind = 4,
+            Content = "test content",
+        }.ComputeIdAndSignAsync(user2),
+        
+        await new NostrEvent()
+        {
+            Kind = 5,
+            Content = "test content 2",
+            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+        }.ComputeIdAndSignAsync(user2),
+        await new NostrEvent()
+        {
+            Kind = 6,
+            Content = "test content 3",
+            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+        }.ComputeIdAndSignAsync(user2)
+    };
+
+    var randomEvents = new List<NostrEvent>()
+    {
+        await new NostrEvent()
+        {
+            Kind = 10,
+            Content = "test content random1",
+        }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32))),
+        await new NostrEvent()
+        {
+            Kind = 20,
+            Content = "test content random2",
+        }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32)))
+    };
+    foreach (var evt in eventsThatFitSubscriptionFilter1.Concat(eventsThatFitSubscriptionFilter2).Concat(randomEvents).Shuffle())
+    {
+
+        await client.PublishEvent(evt);
+    }
+    var evtsForSubscripion1 = new ConcurrentBag<NostrEvent>();
+    // Wait for EOSE message
+    var subscription1EoseReceived = new TaskCompletionSource<bool>();
+    client.EoseReceived += (sender, subscriptionId) =>
+    {
+        if (subscriptionId == "subscription_1")
+        {
+            Assert.Equal(3, evtsForSubscripion1.Count);
+            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
+            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
+            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
+            subscription1EoseReceived.SetResult(true);
+        }
+    };
+    client.EventsReceived += (sender, events) =>
+    {
+        if (events.subscriptionId == "subscription_1")
+        {
+            foreach (var evt in events.events)
+            {
+                evtsForSubscripion1.Add(evt);
+            }
+        }
+    };
+    // Create a subscription with multiple filters
+    await client.CreateSubscription("subscription_1", filtersForSubscription1, CancellationToken.None);
+
+
+
+    // Wait for EOSE message to be received
+    await subscription1EoseReceived.Task;
+
+}
+
 }

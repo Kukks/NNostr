@@ -1,6 +1,8 @@
+using System.Security.Cryptography;
 using System.Threading.Channels;
 using LinqKit;
 using NBitcoin.Secp256k1;
+using SHA256 = System.Security.Cryptography.SHA256;
 
 namespace NNostr.Client
 {
@@ -35,11 +37,13 @@ namespace NNostr.Client
             return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
         }
 
-        public static async ValueTask ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv,
-            bool handlenip4 = true, int powDifficulty = 0) =>
-            await nostrEvent.ComputeIdAndSignAsync<NostrEvent, NostrEventTag>(priv, handlenip4, powDifficulty);
+        public static async Task<NostrEvent> ComputeIdAndSignAsync(NostrEvent nostrEvent, ECPrivKey priv,
+            bool handlenip4 = true, int powDifficulty = 0)
+        {
+            return await nostrEvent.ComputeIdAndSignAsync<NostrEvent, NostrEventTag>(priv, handlenip4, powDifficulty);
+        }
 
-        public static async ValueTask ComputeIdAndSignAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,
+        internal static async Task<TNostrEvent> ComputeIdAndSignAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,
             ECPrivKey priv, bool handlenip4 = true, int powDifficulty = 0) where TNostrEvent : BaseNostrEvent<TEventTag>
             where TEventTag : NostrEventTag, new()
         {
@@ -62,6 +66,8 @@ namespace NNostr.Client
             {
                 nostrEvent.SetTag<TNostrEvent, TEventTag>("nonce", counter.ToString(), powDifficulty.ToString());
             }
+
+            return nostrEvent;
         }
 
         public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data) =>
@@ -377,7 +383,7 @@ namespace NNostr.Client
                 {
                     await client.PublishEvent(evt, cancellationToken);
                 }
-                #if NETSTANDARD
+#if NETSTANDARD
 
                 await Task.WhenAny(tcs.Task, new Task(async o =>
                 {
@@ -387,7 +393,6 @@ namespace NNostr.Client
                     }
                 }, cancellationToken));
 #else
-
                 await tcs.Task.WaitAsync(cancellationToken);
 #endif
             }
