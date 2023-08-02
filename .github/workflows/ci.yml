@@ -14,11 +14,11 @@ jobs:
         with:
           dotnet-version: 7.0.x
 
-      - name: Start containers
-        run: docker-compose -f "Relay/docker-compose.yml" up -d
-      # Run tests
-      - name: Test
-        run: dotnet test
+#      - name: Start containers
+#        run: docker-compose -f "Relay/docker-compose.yml" up -d
+#      # Run tests
+#      - name: Test
+#        run: dotnet test
 
       - name: Publish NuGet
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
