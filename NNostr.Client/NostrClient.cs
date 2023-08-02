@@ -8,28 +8,30 @@ namespace NNostr.Client
     public class NostrClient : INostrClient
     {
         protected WebSocket? WebSocket;
-        
-        protected readonly Uri _relay;
+
+        public readonly Uri Relay;
         private readonly Action<WebSocket>? _websocketConfigure;
         protected CancellationTokenSource? _cts;
         private readonly CancellationTokenSource _messageCts = new();
 
-        private readonly Channel<string> _pendingIncomingMessages = 
-            Channel.CreateUnbounded<string>(new() { SingleReader = true, SingleWriter = true });
+        public virtual WebSocketState? State => WebSocket?.State;
 
-        private readonly Channel<string> _pendingOutgoingMessages = 
-            Channel.CreateUnbounded<string>(new() { SingleReader = true });
+        private readonly Channel<string> _pendingIncomingMessages =
+            Channel.CreateUnbounded<string>(new() {SingleReader = true, SingleWriter = true});
+
+        private readonly Channel<string> _pendingOutgoingMessages =
+            Channel.CreateUnbounded<string>(new() {SingleReader = true});
 
         public NostrClient(Uri relay, Action<WebSocket>? websocketConfigure = null)
         {
-            _relay = relay;
+            Relay = relay;
             _websocketConfigure = websocketConfigure;
             _ = ProcessChannel(_pendingIncomingMessages, HandleIncomingMessage, _messageCts.Token);
             _ = ProcessChannel(_pendingOutgoingMessages, HandleOutgoingMessage, _messageCts.Token);
         }
 
 
-        public Task Disconnect()
+        public virtual Task Disconnect()
         {
             _cts?.Cancel();
             return Task.CompletedTask;
@@ -37,9 +39,7 @@ namespace NNostr.Client
 
         public async Task Connect(CancellationToken token = default)
         {
-            _cts = CancellationTokenSource.CreateLinkedTokenSource(token);
-
-            await ConnectAndWaitUntilConnected(_cts.Token);
+            await ConnectAndWaitUntilConnected(token);
         }
 
         public async IAsyncEnumerable<string> ListenForRawMessages()
@@ -47,27 +47,28 @@ namespace NNostr.Client
             while (WebSocket?.State == WebSocketState.Open && _cts?.IsCancellationRequested is false)
             {
                 var bufferSize = 1000;
-                var  buffer = new byte[bufferSize];
-                
+                var buffer = new byte[bufferSize];
+
                 var offset = 0;
                 var free = buffer.Length;
                 WebSocketReceiveResult result;
                 do
                 {
-                    result = await WebSocket!.ReceiveAsync(new ArraySegment<byte>(buffer, offset, free), _cts.Token).ConfigureAwait(false);
+                    result = await WebSocket!.ReceiveAsync(new ArraySegment<byte>(buffer, offset, free), _cts.Token)
+                        .ConfigureAwait(false);
                     offset += result.Count;
                     free -= result.Count;
                     if (free != 0) continue;
                     // No free space
                     // Resize the outgoing buffer
                     var newSize = buffer.Length + bufferSize;
-                        
+
                     var newBuffer = new byte[newSize];
                     Array.Copy(buffer, 0, newBuffer, 0, offset);
                     buffer = newBuffer;
                     free = buffer.Length - offset;
-                }
-                while (!result.EndOfMessage);
+                } while (!result.EndOfMessage);
+
                 var str = Encoding.UTF8.GetString(buffer, 0, offset);
                 yield return str;
 
@@ -75,7 +76,7 @@ namespace NNostr.Client
                     break;
             }
 
-            WebSocket.Abort();
+            WebSocket?.Abort();
         }
 
         private bool _listening;
@@ -103,6 +104,7 @@ namespace NNostr.Client
             JsonElement json;
             try
             {
+                Console.WriteLine("CL:" + message);
                 json = JsonDocument.Parse(message.Trim('\0')).RootElement;
             }
             catch (Exception)
@@ -110,7 +112,8 @@ namespace NNostr.Client
                 InvalidMessageReceived?.Invoke(this, message);
                 return Task.FromResult(true);
             }
-            switch (json[0].GetString().ToLowerInvariant())
+
+            switch (json[0].GetString()?.ToLowerInvariant())
             {
                 case "event":
                     var subscriptionId = json[1].GetString();
@@ -160,15 +163,28 @@ namespace NNostr.Client
         {
             while (await channel.Reader.WaitToReadAsync(cancellationToken))
             {
-                if (channel.Reader.TryPeek(out var evt))
+                if (!channel.Reader.TryPeek(out var evt)) continue;
+                var attempts = 0;
+                while (attempts < 3)
                 {
-                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    linked.CancelAfter(5000);
-                    if (await processor(evt, linked.Token))
+                    try
                     {
-                        channel.Reader.TryRead(out _);
+                        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        linked.CancelAfter(5000);
+                        if (await processor(evt, linked.Token))
+                        {
+                            break;
+                        }
                     }
+                    catch (Exception)
+                    {
+                        // ignored
+                    }
+
+                    attempts++;
                 }
+
+                channel.Reader.TryRead(out _);
             }
         }
 
@@ -197,10 +213,19 @@ namespace NNostr.Client
         {
             _messageCts.Cancel();
             Disconnect();
-
+            _statusListenerTokenSource?.Cancel();
             _messageCts.Dispose();
             _cts?.Dispose();
+            _statusListenerTokenSource?.Dispose();
+            StateChanged = null;
+            MessageReceived = null;
+            EventsReceived = null;
+            NoticeReceived = null;
+            EoseReceived = null;
+            OkReceived = null;
+            InvalidMessageReceived = null;
         }
+
 
         public async Task ConnectAndWaitUntilConnected(CancellationToken token = default)
         {
@@ -217,41 +242,70 @@ namespace NNostr.Client
             {
                 if (task.Status == TaskStatus.RanToCompletion)
                 {
-                    ListenForMessages();
+                    _ = ListenForMessages();
                 }
-            });
+            }, _cts.Token);
         }
+
+        protected CancellationTokenSource? _statusListenerTokenSource = null;
 
         protected virtual async Task<WebSocket> Connect()
         {
+            _statusListenerTokenSource?.Cancel();
+            _statusListenerTokenSource = new CancellationTokenSource();
+            _ = ListenForWebsocketChanges(_statusListenerTokenSource.Token);
             var r = new ClientWebSocket();
-            
-            r.Options.SetRequestHeader("origin", _relay.ToString());
+
+            r.Options.SetRequestHeader("origin", Relay.ToString());
             _websocketConfigure?.Invoke(r);
-            await r.ConnectAsync(_relay, _cts.Token);
+            await r.ConnectAsync(Relay, _cts.Token);
             return r;
         }
+
+        protected async Task ListenForWebsocketChanges(CancellationToken token)
+        {
+            WebSocketState? lastState = null;
+
+            while (token.IsCancellationRequested is not true)
+            {
+                var state = WebSocket?.State;
+                if (state != lastState)
+                {
+                    lastState = state;
+                    StateChanged?.Invoke(this, state);
+                }
+
+                await Task.Delay(100, token);
+            }
+        }
+
+        public event EventHandler<WebSocketState?>? StateChanged;
 
         /// <summary>
         /// All messages received in their raw format from the relay will be sent to this event.
         /// </summary>
         public event EventHandler<string>? MessageReceived;
+
         /// <summary>
         /// All messages that could not be parsed as JSON will be sent to this event.
         /// </summary>
         public event EventHandler<string>? InvalidMessageReceived;
+
         /// <summary>
         /// All notices received from the relay will be sent to this event.
         /// </summary>
         public event EventHandler<string>? NoticeReceived;
+
         /// <summary>
         /// All events received from the relay based on an existing subscription will be sent to this event.
         /// </summary>
         public event EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
+
         /// <summary>
         /// All OK messages received from the relay will be sent to this event.
         /// </summary>
         public event EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
+
         /// <summary>
         /// All EOSE messages for every active subscription received from the relay will be sent to this event.
         /// </summary>

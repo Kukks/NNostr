@@ -19,7 +19,7 @@ namespace Relay
         private readonly StateManager _stateManager;
         private readonly IOptionsMonitor<RelayOptions> _options;
         private const string PREFIX = "EVENT";
-
+        private CancellationTokenSource? _cts;
         private readonly Channel<(string, string)> PendingMessages = Channel.CreateUnbounded<(string, string)>();
 
         public EventNostrMessageHandler(NostrEventService nostrEventService,
@@ -36,13 +36,13 @@ namespace Relay
 
         private async Task ProcessEventMessages(CancellationToken cancellationToken)
         {
-            while (await PendingMessages.Reader.WaitToReadAsync(cancellationToken))
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            while (await PendingMessages.Reader.WaitToReadAsync(_cts.Token))
             {
                 if (PendingMessages.Reader.TryRead(out var evt))
                 {
                     try
                     {
-                        _logger.LogInformation($"Handling Event message for connection: {evt.Item1} \n{evt.Item2}");
                         var json = JsonDocument.Parse(evt.Item2).RootElement;
                         var e = JsonSerializer.Deserialize<RelayNostrEvent>(json[1].GetRawText());
                         if (_options.CurrentValue.Nip13Difficulty > 0)
@@ -51,7 +51,6 @@ namespace Relay
 
                             if (count < _options.CurrentValue.Nip13Difficulty)
                             {
-                                
                                 WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.CurrentValue.Nip13Difficulty}");
                             }
                         }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
@@ -119,6 +118,7 @@ namespace Relay
 
         public Task StopAsync(CancellationToken cancellationToken)
         {
+            _cts?.Cancel();
             return Task.CompletedTask;
         }
     }

@@ -10,7 +10,6 @@ namespace Relay
     public class WebSocketHandler
     {
         private readonly IEnumerable<INostrMessageHandler> _nostrMessageHandlers;
-        private readonly NostrEventService _nostrEventService;
         private readonly StateManager _stateManager;
         private readonly ILogger<WebSocketHandler> _logger;
         private ConnectionManager WebSocketWebSocketConnectionManager { get; set; }
@@ -19,10 +18,10 @@ namespace Relay
         public WebSocketHandler(
             ConnectionManager webSocketWebSocketConnectionManager,
             IEnumerable<INostrMessageHandler> nostrMessageHandlers,
-            NostrEventService nostrEventService, StateManager stateManager, ILogger<WebSocketHandler> logger)
+            StateManager stateManager, 
+            ILogger<WebSocketHandler> logger)
         {
             _nostrMessageHandlers = nostrMessageHandlers;
-            _nostrEventService = nostrEventService;
             _stateManager = stateManager;
             _logger = logger;
             WebSocketWebSocketConnectionManager = webSocketWebSocketConnectionManager;
@@ -46,13 +45,14 @@ namespace Relay
                 _stateManager.RemoveConnection(id);
             }
 
-            _logger.LogInformation($"Removed connection: {id}");
+            _logger.LogTrace($"Removed connection: {id}");
         }
 
         public Task ReceiveAsync(WebSocket socket, WebSocketReceiveResult result, string msg)
         {
             var id = WebSocketWebSocketConnectionManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
 
+            _logger.LogTrace($"Received message from connection: {id} \n{msg}");
             return Task.WhenAll(_nostrMessageHandlers.AsParallel().Select(handler => handler.Handle(id, msg)));
         }
     }

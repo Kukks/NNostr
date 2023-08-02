@@ -197,9 +197,7 @@ namespace Relay
                         
                     var matched = evt.Filter<RelayNostrEvent,RelayNostrEventTag>( subscriptionFilter).ToArray();
                     if (!matched.Any()) continue;
-                    _logger.LogInformation(
-                        $"Updated connection subscription {pair} with {matched.Length} new events");
-                            
+                     
                     var connectionId = pair[..pair.IndexOf('-')];
                     var subscriptionId = pair[(pair.IndexOf('-')+1)..];
                     eventsMatcheds.Add(new NostrEventsMatched()
@@ -216,9 +214,11 @@ namespace Relay
             await context.Events.AddRangeAsync(
                 evtsToSave.Select(@event => 
                     JsonSerializer.Deserialize<RelayNostrEvent>( JsonSerializer.Serialize(@event)))!);
-            
-            
-            _logger.LogInformation($"Processing/Saving {evt.Length} new events: {removedEvents.Count} removed, {evtsToSave.Length} saved");
+
+
+            var evtMatchStr = string.Join('\n', eventsMatcheds.Select(matched =>
+                $"{matched.ConnectionId}-{matched.SubscriptionId} {matched.Events.Length} events"));
+            _logger.LogInformation($"Processing/Saving {evt.Length} new events: {removedEvents.Count} removed, {evtsToSave.Length} saved\n{evtMatchStr}");
             await context.SaveChangesAsync();
             NewEvents?.Invoke(this, evt);
             eventsMatcheds.ForEach(InvokeMatched);

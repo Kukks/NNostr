@@ -1,3 +1,4 @@
+using System.Net.WebSockets;
 using System.Security.Cryptography;
 using System.Threading.Channels;
 using LinqKit;
@@ -37,7 +38,7 @@ namespace NNostr.Client
             return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
         }
 
-        public static async Task<NostrEvent> ComputeIdAndSignAsync(NostrEvent nostrEvent, ECPrivKey priv,
+        public static async Task<NostrEvent> ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv,
             bool handlenip4 = true, int powDifficulty = 0)
         {
             return await nostrEvent.ComputeIdAndSignAsync<NostrEvent, NostrEventTag>(priv, handlenip4, powDifficulty);
@@ -281,12 +282,12 @@ namespace NNostr.Client
         public static async IAsyncEnumerable<NostrEvent> SubscribeForEvents(this INostrClient client,
             NostrSubscriptionFilter[] filters, bool stopWhenEoseSent, CancellationToken cancellationToken)
         {
-            
+         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);   
             var subscriptionId = Guid.NewGuid().ToString();
             var _receivedEvents = Channel.CreateUnbounded<NostrEvent>(new() {SingleReader = true, SingleWriter = true});
             
             var tcs = new TaskCompletionSource<bool>();
-            cancellationToken.Register(() => tcs.TrySetResult(true));
+            linkedCts.Token.Register(() => tcs.TrySetResult(true));
             void OnClientOnEventsReceived(object? sender, (string subscriptionId, NostrEvent[] events) args)
                 {
                     if (args.subscriptionId == subscriptionId)
@@ -304,12 +305,29 @@ namespace NNostr.Client
                     tcs.TrySetResult(true);
                 }
             }
+            
+
+            void NostrClientOnStateChanged(object? sender, WebSocketState? e)
+            {
+                if (e is not WebSocketState.Open)
+                    tcs.TrySetResult(true);
+            } void NostrClientOnStateChanged2(object? sender, (Uri, WebSocketState?) valueTuple)
+            {
+                if (sender is CompositeNostrClient client2 && client2.States.Values.All(state => state is not WebSocketState.Open))
+                    tcs.TrySetResult(true);
+            }
             if (stopWhenEoseSent)
             {
                 client.EoseReceived += OnClientOnEoseReceived;
             }
             client.EventsReceived += OnClientOnEventsReceived;
-            
+            if(client is NostrClient nostrClient)
+            {
+                nostrClient.StateChanged += NostrClientOnStateChanged;
+            }else if(client is CompositeNostrClient nostrClient2)
+            {
+                nostrClient2.StateChanged += NostrClientOnStateChanged2;
+            }
             try
             {
                 
@@ -332,9 +350,15 @@ namespace NNostr.Client
             finally
             {
                 await client.CloseSubscription(subscriptionId);
-                
                 client.EventsReceived -= OnClientOnEventsReceived;
                 client.EoseReceived -= OnClientOnEoseReceived;
+                if(client is NostrClient nostrClient2)
+                {
+                    nostrClient2.StateChanged -= NostrClientOnStateChanged;
+                }else if(client is CompositeNostrClient nostrClient3)
+                {
+                    nostrClient3.StateChanged -= NostrClientOnStateChanged2;
+                }
             }
         }
 
@@ -375,8 +399,26 @@ namespace NNostr.Client
                     }
                 }
             }
+            
+            void NostrClientOnStateChanged(object? sender, WebSocketState? e)
+            {
+                if (e is not WebSocketState.Open)
+                    tcs.TrySetResult(true);
+            } void NostrClientOnStateChanged2(object? sender, (Uri, WebSocketState?) valueTuple)
+            {
+                if (sender is CompositeNostrClient client2 && client2.States.Values.All(state => state is not WebSocketState.Open))
+                    tcs.TrySetResult(true);
+            }
             client.EventsReceived += OnClientOnEventsReceived;
             client.OkReceived += OnClientOnOkReceived;
+            
+            if(client is NostrClient nostrClient)
+            {
+                nostrClient.StateChanged += NostrClientOnStateChanged;
+            }else if(client is CompositeNostrClient nostrClient2)
+            {
+                nostrClient2.StateChanged += NostrClientOnStateChanged2;
+            }
             try
             {
                 foreach (var evt in events)
@@ -400,6 +442,13 @@ namespace NNostr.Client
             {
                 client.OkReceived -= OnClientOnOkReceived;
                 client.EventsReceived -= OnClientOnEventsReceived;
+                if(client is NostrClient nostrClient2)
+                {
+                    nostrClient2.StateChanged -= NostrClientOnStateChanged;
+                }else if(client is CompositeNostrClient nostrClient3)
+                {
+                    nostrClient3.StateChanged -= NostrClientOnStateChanged2;
+                }
             }
 
         }

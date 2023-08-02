@@ -18,7 +18,7 @@ public class RelayTests
 {
     private readonly ITestOutputHelper _output;
 
-    public RelayTests(ITestOutputHelper output )
+    public RelayTests(ITestOutputHelper output)
     {
         _output = output;
     }
@@ -26,6 +26,7 @@ public class RelayTests
     public class TestServerClient : NostrClient
     {
         private readonly TestServer _server;
+        private WebSocketClient _wsc;
 
         public TestServerClient(TestServer server) : base(new Uri("wss://lol.com"), null)
         {
@@ -34,15 +35,25 @@ public class RelayTests
 
         protected override Task<WebSocket> Connect()
         {
-            var r = _server.CreateWebSocketClient();
-            return r.ConnectAsync(_server.BaseAddress, _cts.Token);
+            _statusListenerTokenSource?.Cancel();
+            _statusListenerTokenSource = new CancellationTokenSource();
+            _ = ListenForWebsocketChanges(_statusListenerTokenSource.Token);
+            _wsc = _server.CreateWebSocketClient();
+            return _wsc.ConnectAsync(_server.BaseAddress, _cts.Token);
+        }
+
+        public override async Task Disconnect()
+        {
+            WebSocket?.Dispose();
+            WebSocket = null;
+
         }
     }
 
     [Fact]
     public async Task CanUseBasics()
     {
-        await using var server = new RelayTestServer(_output,true);
+        await using var server = new RelayTestServer(_output, true);
         var client = new TestServerClient(server.Server);
         await client.Connect();
         var p = ECPrivKey.Create(RandomUtils.GetBytes(32));
@@ -56,16 +67,9 @@ public class RelayTests
 
         await event1.ComputeIdAndSignAsync(p);
         var tcseose = new TaskCompletionSource<string>();
-        client.MessageReceived+= (sender, s) =>
-        {
-            Console.WriteLine("sdsd");
-            
-        };
-        client.EoseReceived += (sender, s) =>
-        {
-            tcseose.TrySetResult(s);
-        };
-        
+        client.MessageReceived += (sender, s) => { Console.WriteLine("sdsd"); };
+        client.EoseReceived += (sender, s) => { tcseose.TrySetResult(s); };
+
         await client.Connect();
 
 
@@ -76,19 +80,21 @@ public class RelayTests
                 Authors = new[] {event1.PublicKey}
             }
         }, CancellationToken.None);
-        
-        var evts =  client.SubscribeForEvents(new []{ new NostrSubscriptionFilter()
+
+        var evts = client.SubscribeForEvents(new[]
         {
-            Authors = new []{event1.PublicKey}
-        }}, true, CancellationToken.None);
-        
-        
+            new NostrSubscriptionFilter()
+            {
+                Authors = new[] {event1.PublicKey}
+            }
+        }, true, CancellationToken.None);
+
+
         await client.SendEventsAndWaitUntilReceived(new[] {event1}, CancellationToken.None);
-        
+
         Assert.Equal("TESTX", await tcseose.Task);
         var matched = await evts.SingleAsync();
         Assert.Equal(matched.Id, event1.Id);
-
     }
 
     [Fact]
@@ -117,13 +123,11 @@ public class RelayTests
             }
         }, true, CancellationToken.None).CountAsync());
 
-        replaceableEvent = new NostrEvent()
+        replaceableEvent = await new NostrEvent()
         {
             Kind = 15000,
             Content = $"testing NNostr replaceable2",
-        };
-
-        await replaceableEvent.ComputeIdAndSignAsync(p);
+        }.ComputeIdAndSignAsync(p);
         await client.SendEventsAndWaitUntilReceived(new[] {replaceableEvent}, CancellationToken.None);
         var evts = await client.SubscribeForEvents(new[]
         {
@@ -133,132 +137,209 @@ public class RelayTests
                 Authors = new[] {pub}
             }
         }, true, CancellationToken.None).ToArrayAsync();
-        
         Assert.Equal("testing NNostr replaceable2", Assert.Single(evts).Content);
     }
-    
+
     [Fact]
-public async Task CanHandleSubscriptionsAndFilters()
-{
-    await using var server = new RelayTestServer(_output, true);
-    var client = new TestServerClient(server.Server);
-    await client.Connect();
-
-    var user1 = ECPrivKey.Create(RandomUtils.GetBytes(32));
-    var user1Pub = user1.CreateXOnlyPubKey().ToHex();
-    var user2 = ECPrivKey.Create(RandomUtils.GetBytes(32));
-    var user2Pub = user2.CreateXOnlyPubKey().ToHex();
-
-    var filtersForSubscription1 = new[]
+    public async Task CanHandleSubscriptionsAndFilters()
     {
-        new NostrSubscriptionFilter()
-        {
-            Authors = new[] {user1Pub},
-            Kinds = new[] {1, 2, 3},
-            Limit = 2
-        },
-        new NostrSubscriptionFilter()
-        {
-            Authors = new[] {user2Pub},
-            Kinds = new[] {4, 5, 6},
-            Limit = 1
-        }
-    };
+        await using var server = new RelayTestServer(_output, true);
+        var client = new TestServerClient(server.Server);
+        await client.Connect();
 
-    var eventsThatFitSubscriptionFilter1 = new List<NostrEvent>()
+        var user1 = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var user1Pub = user1.CreateXOnlyPubKey().ToHex();
+        var user2 = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var user2Pub = user2.CreateXOnlyPubKey().ToHex();
+
+        var filtersForSubscription1 = new[]
+        {
+            new NostrSubscriptionFilter()
+            {
+                Authors = new[] {user1Pub},
+                Kinds = new[] {1, 2, 3},
+                Limit = 2
+            },
+            new NostrSubscriptionFilter()
+            {
+                Authors = new[] {user2Pub},
+                Kinds = new[] {4, 5, 6},
+                Limit = 1
+            }
+        };
+
+        var eventsThatFitSubscriptionFilter1 = new List<NostrEvent>()
+        {
+            await new NostrEvent()
+            {
+                Kind = 1,
+                Content = "test content",
+            }.ComputeIdAndSignAsync(user1),
+
+            await new NostrEvent()
+            {
+                Kind = 2,
+                Content = "test content 2",
+            }.ComputeIdAndSignAsync(user1),
+            await new NostrEvent()
+            {
+                Kind = 3,
+                Content = "test content 3",
+                CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+            }.ComputeIdAndSignAsync(user1)
+        };
+
+        var eventsThatFitSubscriptionFilter2 = new List<NostrEvent>()
+        {
+            await new NostrEvent()
+            {
+                Kind = 4,
+                Content = "test content",
+                Tags = new List<NostrEventTag>()
+                {
+                    new NostrEventTag()
+                    {
+                        TagIdentifier = "p",
+                        Data = new List<string>()
+                        {
+                            user2Pub
+                        }
+                    }
+                }
+            }.ComputeIdAndSignAsync(user2),
+
+            await new NostrEvent()
+            {
+                Kind = 5,
+                Content = "test content 2",
+                CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+            }.ComputeIdAndSignAsync(user2),
+            await new NostrEvent()
+            {
+                Kind = 6,
+                Content = "test content 3",
+                CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
+            }.ComputeIdAndSignAsync(user2)
+        };
+
+        var randomEvents = new List<NostrEvent>()
+        {
+            await new NostrEvent()
+            {
+                Kind = 10,
+                Content = "test content random1",
+            }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32))),
+            await new NostrEvent()
+            {
+                Kind = 20,
+                Content = "test content random2",
+            }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32)))
+        };
+
+        await client.SendEventsAndWaitUntilReceived(eventsThatFitSubscriptionFilter1
+            .Concat(eventsThatFitSubscriptionFilter2)
+            .Concat(randomEvents).Shuffle().ToArray(), CancellationToken.None);
+        var evtsForSubscripion1 = new ConcurrentBag<NostrEvent>();
+        // Wait for EOSE message
+        var subscription1EoseReceived = new TaskCompletionSource<bool>();
+        client.EoseReceived += (sender, subscriptionId) =>
+        {
+            if (subscriptionId == "subscription_1")
+            {
+                Assert.Equal(3, evtsForSubscripion1.Count);
+                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
+                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
+                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
+                subscription1EoseReceived.SetResult(true);
+            }
+        };
+        client.EventsReceived += (sender, events) =>
+        {
+            if (events.subscriptionId == "subscription_1")
+            {
+                foreach (var evt in events.events)
+                {
+                    evtsForSubscripion1.Add(evt);
+                }
+            }
+        };
+        // Create a subscription with multiple filters
+        await client.CreateSubscription("subscription_1", filtersForSubscription1, CancellationToken.None);
+
+
+        // Wait for EOSE message to be received
+        await subscription1EoseReceived.Task;
+    }
+    
+    
+
+    [Fact]
+    public async Task CanUseClient()
     {
-        await new NostrEvent()
+        await using var server = new RelayTestServer(_output, true);
+        var client = new TestServerClient(server.Server);
+        await  client.Connect();
+        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var khex = k.ToHex();
+        var user1 = ClientTests.CreateUser(khex);
+
+        var evt = new NostrEvent()
         {
             Kind = 1,
-            Content = "test content",
-        }.ComputeIdAndSignAsync(user1),
+            Content = "testing NNostr",
+        };
+        await evt.ComputeIdAndSignAsync(user1.PrivateKey);
+        await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None);
         
-        await new NostrEvent()
-        {
-            Kind = 2,
-            Content = "test content 2",
-        }.ComputeIdAndSignAsync(user1),
-        await new NostrEvent()
-        {
-            Kind = 3,
-            Content = "test content 3",
-            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
-        }.ComputeIdAndSignAsync(user1)
-    };
-    
-    var eventsThatFitSubscriptionFilter2 = new List<NostrEvent>()
-    {
-        
-        await new NostrEvent()
-        {
-            Kind = 4,
-            Content = "test content",
-        }.ComputeIdAndSignAsync(user2),
-        
-        await new NostrEvent()
-        {
-            Kind = 5,
-            Content = "test content 2",
-            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
-        }.ComputeIdAndSignAsync(user2),
-        await new NostrEvent()
-        {
-            Kind = 6,
-            Content = "test content 3",
-            CreatedAt = DateTimeOffset.UtcNow.Subtract(TimeSpan.FromHours(1))
-        }.ComputeIdAndSignAsync(user2)
-    };
-
-    var randomEvents = new List<NostrEvent>()
-    {
-        await new NostrEvent()
-        {
-            Kind = 10,
-            Content = "test content random1",
-        }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32))),
-        await new NostrEvent()
-        {
-            Kind = 20,
-            Content = "test content random2",
-        }.ComputeIdAndSignAsync(ECPrivKey.Create(RandomUtils.GetBytes(32)))
-    };
-    foreach (var evt in eventsThatFitSubscriptionFilter1.Concat(eventsThatFitSubscriptionFilter2).Concat(randomEvents).Shuffle())
-    {
-
-        await client.PublishEvent(evt);
     }
-    var evtsForSubscripion1 = new ConcurrentBag<NostrEvent>();
-    // Wait for EOSE message
-    var subscription1EoseReceived = new TaskCompletionSource<bool>();
-    client.EoseReceived += (sender, subscriptionId) =>
+    [Fact]
+    public async Task CanUseClient2()
     {
-        if (subscriptionId == "subscription_1")
+        
+        await using var server = new RelayTestServer(_output, true);
+        var client = new TestServerClient(server.Server);
+       
+        Assert.Null(client.State);;
+        var connectedStateRaised = new TaskCompletionSource();
+        client.StateChanged += (sender, state) =>
         {
-            Assert.Equal(3, evtsForSubscripion1.Count);
-            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
-            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
-            Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
-            subscription1EoseReceived.SetResult(true);
-        }
-    };
-    client.EventsReceived += (sender, events) =>
-    {
-        if (events.subscriptionId == "subscription_1")
-        {
-            foreach (var evt in events.events)
+            switch (state)
             {
-                evtsForSubscripion1.Add(evt);
+                case WebSocketState.Open:
+                    connectedStateRaised.TrySetResult();
+                    break;
             }
+        };
+        await  client.Connect();
+        await connectedStateRaised.Task;
+        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
+        var khex = k.ToHex();
+        var user1 = ClientTests.CreateUser(khex);
+        var evts = new List<NostrEvent>();
+        for (int i = 0; i < 2; i++)
+        {
+            var evt = new NostrEvent()
+            {
+                Kind = 1,
+                Content = $"testing NNostr {i}",
+            };
+            await evt.ComputeIdAndSignAsync(user1.PrivateKey);
+            evts.Add(evt);
         }
-    };
-    // Create a subscription with multiple filters
-    await client.CreateSubscription("subscription_1", filtersForSubscription1, CancellationToken.None);
+        
+        await client.SendEventsAndWaitUntilReceived(evts.ToArray(), CancellationToken.None);
+        var subscription = new NostrSubscriptionFilter()
+        {
+            Ids = evts.Select(e => e.Id).ToArray()
+        };
 
+        var counter = await client.SubscribeForEvents(new[] {subscription}, true, CancellationToken.None).CountAsync();
 
+        Assert.Equal(2, counter);
+        
+        var t = client.SubscribeForEvents(new[] {subscription}, false, CancellationToken.None).CountAsync();
 
-    // Wait for EOSE message to be received
-    await subscription1EoseReceived.Task;
-
-}
-
+        await client.Disconnect();
+        await t;
+    }
 }

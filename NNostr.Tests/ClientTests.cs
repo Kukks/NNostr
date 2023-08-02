@@ -3,20 +3,14 @@ using NBitcoin.Secp256k1;
 using NNostr.Client;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Hosting;
-using NBitcoin;
-using Relay;
 using Xunit;
-using Program = Microsoft.VisualStudio.TestPlatform.TestHost.Program;
 
 namespace NNostr.Tests;
 
 public class ClientTests
 {
-    private (ECPrivKey PrivateKey, string PrivateKeyHex, ECXOnlyPubKey PublicKey, string PublicKeyHex) CreateUser(
+    public static (ECPrivKey PrivateKey, string PrivateKeyHex, ECXOnlyPubKey PublicKey, string PublicKeyHex) CreateUser(
         string privKeyHex)
     {
         Assert.True(Context.Instance.TryCreateECPrivKey(Convert.FromHexString(privKeyHex), out var privKey));
@@ -62,58 +56,5 @@ public class ClientTests
         var pubKey = privKey.CreateXOnlyPubKey();
         Assert.Equal("7cef86754ddf07395c289c30fe31219de938c6d707d6b478a8682fc75795e8b9",
             pubKey.ToBytes().AsSpan().ToHex());
-    }
-
-    [Fact]
-    public async Task CanUseClient()
-    {
-        var uri = new Uri("wss://nostr.btcmp.com");
-        var client = new NostrClient(uri);
-        await  client.Connect();
-        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
-        var khex = k.ToHex();
-        var user1 = CreateUser(khex);
-
-        var evt = new NostrEvent()
-        {
-            Kind = 1,
-            Content = "testing NNostr",
-        };
-        await evt.ComputeIdAndSignAsync(user1.PrivateKey);
-        await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None);
-        
-    }
-    
-    public async Task CanUseClient2()
-    {
-        var uri = new Uri("wss://localhost:5001");
-        var client = new NostrClient(uri);
-        await  client.Connect();
-        var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
-        var khex = k.ToHex();
-        var user1 = CreateUser(khex);
-        var evts = new List<NostrEvent>();
-        for (int i = 0; i < 2; i++)
-        {
-            var evt = new NostrEvent()
-            {
-                Kind = 1,
-                Content = $"testing NNostr {i}",
-            };
-            await evt.ComputeIdAndSignAsync(user1.PrivateKey);
-            evts.Add(evt);
-        }
-        
-        await client.SendEventsAndWaitUntilReceived(evts.ToArray(), CancellationToken.None);
-        var subscription = new NostrSubscriptionFilter()
-        {
-            Ids = evts.Select(e => e.Id).ToArray()
-        };
-
-        var counter = await client.SubscribeForEvents(new[] {subscription}, true, CancellationToken.None).CountAsync();
-
-        Assert.Equal(2, counter);
-        
-       
     }
 }

@@ -6,6 +6,7 @@ public class CompositeNostrClient: INostrClient
 {
     private readonly NostrClient[] _clients;
 
+    public Dictionary<Uri, WebSocketState?> States => _clients.ToDictionary(c => c.Relay, c => c.State);
     public CompositeNostrClient(Uri[] relays, Action<WebSocket>? websocketConfigure = null)
     {
         _clients = relays.Select(r =>
@@ -17,7 +18,7 @@ public class CompositeNostrClient: INostrClient
             c.EventsReceived += (sender, events) => EventsReceived?.Invoke(sender, events);
             c.OkReceived += (sender, ok) => OkReceived?.Invoke(sender, ok);
             c.EoseReceived += (sender, message) => EoseReceived?.Invoke(sender, message);
-                
+            c.StateChanged += (sender, state) => StateChanged?.Invoke(sender, (r, state));;
             return c;
         }).ToArray();
     }
@@ -60,15 +61,7 @@ public class CompositeNostrClient: INostrClient
     {
         foreach (var client in _clients)
         {
-            client.MessageReceived -= MessageReceived;
-            client.InvalidMessageReceived -= InvalidMessageReceived;
-            client.NoticeReceived -= NoticeReceived;
-            client.EventsReceived -= EventsReceived;
-            client.OkReceived -= OkReceived;
-            client.EoseReceived -= EoseReceived;
-                
-            client.Dispose();
-                
+            client.Dispose();       
         }
     }
 
@@ -83,4 +76,5 @@ public class CompositeNostrClient: INostrClient
     public event EventHandler<(string subscriptionId, NostrEvent[] events)>? EventsReceived;
     public event EventHandler<(string eventId, bool success, string messafe)>? OkReceived;
     public event EventHandler<string>? EoseReceived;
+    public event EventHandler<(Uri,WebSocketState?)>? StateChanged;
 }

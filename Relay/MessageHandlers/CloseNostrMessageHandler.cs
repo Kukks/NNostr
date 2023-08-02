@@ -25,10 +25,7 @@ namespace Relay
             {
                 return;
             }
-            
-            _logger.LogInformation($"Handling Close message for connection: {connectionId} \n{msg}");
             var json = JsonDocument.Parse(msg).RootElement;
-
             var id = $"{connectionId}_{json[1].GetString()}";
             _stateManager.RemoveSubscription(connectionId, id);
         }

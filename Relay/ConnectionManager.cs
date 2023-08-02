@@ -18,6 +18,7 @@ namespace Relay
         private readonly ILogger<ConnectionManager> _logger;
         private readonly NostrEventService _nostrEventService;
         private readonly IOptionsMonitor<RelayOptions> _options;
+        private object _lock = new();
         private Task _processingSendMessages = Task.CompletedTask;
         private CancellationTokenSource _cts;
         public ConcurrentDictionary<string, WebSocket> Connections { get; set; } = new();
@@ -70,7 +71,7 @@ namespace Relay
                     {
                         if (Connections.TryGetValue(evt.Item1, out var conn))
                         {
-                            _logger.LogInformation($"sending message to connection {evt.connectionId}\n{evt.message}");
+                            _logger.LogTrace($"sending message to connection {evt.connectionId}\n{evt.message}");
                             await conn.SendMessageAsync(evt.Item2, cancellationToken);
                         }
                         else
