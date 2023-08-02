@@ -104,7 +104,6 @@ namespace NNostr.Client
             JsonElement json;
             try
             {
-                Console.WriteLine("CL:" + message);
                 json = JsonDocument.Parse(message.Trim('\0')).RootElement;
             }
             catch (Exception)
