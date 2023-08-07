@@ -34,5 +34,9 @@ namespace NNostr.Client
                 return Convert.ToHexString(bytes).ToLowerInvariant();
             #endif
         }
+        public static Span<byte>  FromHex(this string hex)
+        {
+            return Convert.FromHexString(hex).AsSpan();
+        }
     }
 }

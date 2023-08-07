@@ -48,7 +48,7 @@ public static class NIP04
         var ourPubKey = privateKey.CreateXOnlyPubKey();
         var ourPubKeyHex = ourPubKey.ToBytes().AsSpan().ToHex();
         var areWeSender = false;
-        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(Convert.FromHexString(receiverPubKeyStr));
+        var receiverPubKey = Context.Instance.CreateXOnlyPubKey(receiverPubKeyStr.FromHex());
 
         var receiverPubKeyHex = receiverPubKey.ToBytes().AsSpan().ToHex();
         var senderPubkKey = nostrEvent.GetPublicKey<TNostrEvent, TEventTag>();

@@ -1,4 +1,5 @@
 using System.Net.WebSockets;
+using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Threading.Channels;
 using LinqKit;
@@ -151,7 +152,7 @@ namespace NNostr.Client
 
         public static ECPrivKey ParseKey(string key)
         {
-            return ParseKey(Convert.FromHexString(key));
+            return ParseKey(key);
         }
 
         public static ECPrivKey ParseKey(byte[] key)
@@ -161,7 +162,7 @@ namespace NNostr.Client
 
         public static ECXOnlyPubKey ParsePubKey(string key)
         {
-            return ParsePubKey(Convert.FromHexString(key));
+            return ParsePubKey(key.FromHex().ToArray());
         }
 
         public static ECXOnlyPubKey ParsePubKey(byte[] key)
@@ -280,7 +281,7 @@ namespace NNostr.Client
         }
 
         public static async IAsyncEnumerable<NostrEvent> SubscribeForEvents(this INostrClient client,
-            NostrSubscriptionFilter[] filters, bool stopWhenEoseSent, CancellationToken cancellationToken)
+            NostrSubscriptionFilter[] filters, bool stopWhenEoseSent, [EnumeratorCancellation]CancellationToken cancellationToken)
         {
          var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);   
             var subscriptionId = Guid.NewGuid().ToString();
