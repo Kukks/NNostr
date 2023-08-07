@@ -255,7 +255,15 @@ namespace NNostr.Client
             _ = ListenForWebsocketChanges(_statusListenerTokenSource.Token);
             var r = new ClientWebSocket();
 
-            r.Options.SetRequestHeader("origin", Relay.ToString());
+            try
+            {
+                r.Options.SetRequestHeader("origin", Relay.ToString());
+            }
+            catch (Exception e)
+            {
+                // ignored
+            }
+
             _websocketConfigure?.Invoke(r);
             await r.ConnectAsync(Relay, _cts.Token);
             return r;
