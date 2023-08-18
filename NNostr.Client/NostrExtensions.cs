@@ -152,7 +152,7 @@ namespace NNostr.Client
 
         public static ECPrivKey ParseKey(string key)
         {
-            return ParseKey(key);
+            return ParseKey(key.FromHex().ToArray());
         }
 
         public static ECPrivKey ParseKey(byte[] key)
