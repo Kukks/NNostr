@@ -28,13 +28,13 @@ public static class NIP04
     /// <param name="privateKey">The receiver private key.</param>
     /// <param name="aes">The AES-256-CBC implementation to use in the decryption. If <c>null</c>, uses the native platform provided implementation.</param>
     /// <returns>Decrypted <see cref="NostrEvent.Content"/>.</returns>
-    public static async ValueTask<string> DecryptNip04EventAsync(this NostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null) => await nostrEvent.DecryptNip04EventAsync<NostrEvent, NostrEventTag>(privateKey, aes);
-    public static async ValueTask<string> DecryptNip04EventAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
+    public static async ValueTask<string> DecryptNip04EventAsync(this NostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null, bool skipKindVerification = false) => await nostrEvent.DecryptNip04EventAsync<NostrEvent, NostrEventTag>(privateKey, aes, skipKindVerification);
+    public static async ValueTask<string> DecryptNip04EventAsync<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent,  ECPrivKey privateKey, IAesEncryption? aes = null, bool skipKindVerification = false) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
     {
         // By default, use native AES implementation.
         aes ??= _platformAesImplementation;
 
-        if (nostrEvent.Kind != 4)
+        if (!skipKindVerification && nostrEvent.Kind != 4)
         {
             throw new ArgumentException("The event is not of kind 4", nameof(nostrEvent));
         }
