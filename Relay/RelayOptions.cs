@@ -36,6 +36,9 @@ public class RelayOptions
     public string? RelayDescription { get; set; }
     public string? RelayAlternativeContact { get; set; }
 
+    public int? PurgeAfterDays { get; set; } = 30;
+    
+
     [JsonIgnore]
     public ECPrivKey? AdminPrivateKey
     {

@@ -44,6 +44,7 @@ namespace Relay
             services.AddEFSecondLevelCache(options =>
                 options.UseMemoryCacheProvider(CacheExpirationMode.Sliding, TimeSpan.FromMinutes(5)).DisableLogging(true).UseCacheKeyPrefix("EF_"));
             services.AddHostedService<MigrationHostedService>();
+            services.AddHostedService<Purger>();
             services.AddHostedService(provider => provider.GetRequiredService<EventNostrMessageHandler>());
             services.AddHostedService(provider => provider.GetRequiredService<BTCPayServerService>());
             services.AddSingleton<AdminChatBot>();
