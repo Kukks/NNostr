@@ -72,6 +72,21 @@ namespace NNostr.Client
             return nostrEvent;
         }
 
+        public static NostrEvent SetReferencedPublickKey(this NostrEvent nostrEvent, string identity)
+        {
+            nostrEvent.SetTag("p", identity);
+            return nostrEvent;
+        }
+        public static NostrEvent SetReferencedPublickKey(this NostrEvent nostrEvent, ECXOnlyPubKey identity)
+        {
+           return SetReferencedPublickKey(nostrEvent, identity.ToHex());
+        }  
+        public static NostrEvent SetReferencedEvent(this NostrEvent nostrEvent, string eventId)
+        {
+            nostrEvent.SetTag("e", eventId);
+            return nostrEvent;
+        }
+
         public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data) =>
             nostrEvent.SetTag<NostrEvent, NostrEventTag>(identifier, data);
 
@@ -192,6 +207,11 @@ namespace NNostr.Client
         public static string[] GetTaggedEvents(this NostrEvent e)
         {
             return e.GetTaggedData("e");
+        }
+
+        public static string[] GetTaggedPublicKeys(this NostrEvent e)
+        {
+            return e.GetTaggedData("p");
         }
 
         public static string[] GetTaggedData(this NostrEvent e, string identifier)
@@ -426,22 +446,173 @@ namespace NNostr.Client
                 {
                     await client.PublishEvent(evt, cancellationToken);
                 }
-#if NETSTANDARD
-
-                await Task.WhenAny(tcs.Task, new Task(async o =>
-                {
-                    while (!cancellationToken.IsCancellationRequested)
-                    {
-                        await Task.Delay(1000, cancellationToken);
-                    }
-                }, cancellationToken));
-#else
-                await tcs.Task.WaitAsync(cancellationToken);
-#endif
+                
+                await WaitForTaskCompletionSourceWithCancellationToken(tcs, cancellationToken);
             }
             finally
             {
                 client.OkReceived -= OnClientOnOkReceived;
+                client.EventsReceived -= OnClientOnEventsReceived;
+                if(client is NostrClient nostrClient2)
+                {
+                    nostrClient2.StateChanged -= NostrClientOnStateChanged;
+                }else if(client is CompositeNostrClient nostrClient3)
+                {
+                    nostrClient3.StateChanged -= NostrClientOnStateChanged2;
+                }
+            }
+
+        }
+
+        public static async Task<List<NostrEvent>> FetchEvents(this INostrClient client,
+            NostrSubscriptionFilter[] filters, CancellationToken cancellationToken)
+        {
+            HashSet<NostrEvent> result = new();
+            TaskCompletionSource<bool> tcs = new();
+            var subId = Guid.NewGuid().ToString();
+
+            client.EoseReceived += clientOnEoseReceived;
+            client.EventsReceived += ClientOnEventsReceived;
+            switch (client)
+            {
+                case NostrClient nostrClient:
+                    nostrClient.StateChanged += NostrClientOnStateChanged;
+                    break;
+                case CompositeNostrClient nostrClient2:
+                    nostrClient2.StateChanged += NostrClientOnStateChanged2;
+                    break;
+            }
+
+            await client.CreateSubscription(subId, filters, cancellationToken);
+
+            void ClientOnEventsReceived(object? sender, (string subscriptionId, NostrEvent[] events) e)
+            {
+                if (e.subscriptionId != subId) return;
+                foreach (var nostrEvent in e.events)
+                {
+                    result.Add(nostrEvent);
+                }
+            }
+
+            void clientOnEoseReceived(object? sender, string e)
+            {
+                if (e == subId)
+                {
+                    tcs.TrySetResult(true);
+                }
+            }
+
+            void NostrClientOnStateChanged(object? sender, WebSocketState? e)
+            {
+                if (e is not WebSocketState.Open)
+                    tcs.TrySetResult(true);
+            }
+
+            void NostrClientOnStateChanged2(object? sender, (Uri, WebSocketState?) valueTuple)
+            {
+                if (sender is CompositeNostrClient client2 &&
+                    client2.States.Values.All(state => state is not WebSocketState.Open))
+                    tcs.TrySetResult(true);
+            }
+
+            try
+            {
+                await WaitForTaskCompletionSourceWithCancellationToken(tcs, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+            finally
+            {
+                client.EventsReceived -= ClientOnEventsReceived;
+                client.EoseReceived -= clientOnEoseReceived;
+                if(client is NostrClient nostrClient2)
+                {
+                    nostrClient2.StateChanged -= NostrClientOnStateChanged;
+                }else if(client is CompositeNostrClient nostrClient3)
+                {
+                    nostrClient3.StateChanged -= NostrClientOnStateChanged2;
+                }
+                
+            }
+
+            return result.ToList();
+        }
+
+        public static  async Task WaitForTaskCompletionSourceWithCancellationToken<T>(TaskCompletionSource<T> tcs,
+            CancellationToken cancellationToken)
+        {
+#if NETSTANDARD
+
+            await Task.WhenAny(tcs.Task, new Task(async o =>
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    await Task.Delay(100, cancellationToken);
+                }
+            }, cancellationToken));
+#else
+                await tcs.Task.WaitAsync(cancellationToken);
+#endif
+        }
+
+        public static async Task<NostrEvent> SendEventAndWaitForReply(this INostrClient client,NostrEvent nostrEvent,
+            CancellationToken cancellationToken)
+        {
+            var tcs = new TaskCompletionSource<NostrEvent>();
+            var evtId = nostrEvent.Id;
+            var sentTo = nostrEvent.GetTaggedPublicKeys();
+            var subId = Guid.NewGuid().ToString();
+            
+
+            void OnClientOnEventsReceived(object sender, (string subscriptionId, NostrEvent[] events) args)
+            {
+                if (args.subscriptionId == subId)
+                {
+                    foreach (var nostrEvent in args.events)
+                    {
+                        if (nostrEvent.Id == evtId)
+                        {
+                            tcs.TrySetResult(nostrEvent);
+                            break;
+                        }
+                    }
+                }
+            }
+            
+            void NostrClientOnStateChanged(object? sender, WebSocketState? e)
+            {
+                if (e is not WebSocketState.Open)
+                    tcs.TrySetResult(null);
+            } void NostrClientOnStateChanged2(object? sender, (Uri, WebSocketState?) valueTuple)
+            {
+                if (sender is CompositeNostrClient client2 && client2.States.Values.All(state => state is not WebSocketState.Open))
+                    tcs.TrySetResult(null);
+            }
+            client.EventsReceived += OnClientOnEventsReceived;
+            
+            if(client is NostrClient nostrClient)
+            {
+                nostrClient.StateChanged += NostrClientOnStateChanged;
+            }else if(client is CompositeNostrClient nostrClient2)
+            {
+                nostrClient2.StateChanged += NostrClientOnStateChanged2;
+            }
+            await client.CreateSubscription(subId, new[]
+            {
+                new NostrSubscriptionFilter
+                {
+                    ReferencedEventIds = new[] {evtId},
+                    ReferencedPublicKeys = sentTo?.Any() is true ? sentTo : null
+                }
+            }, cancellationToken);
+            try
+            {
+                await client.PublishEvent(nostrEvent, cancellationToken);
+                return await tcs.Task;
+            }
+            finally
+            {
                 client.EventsReceived -= OnClientOnEventsReceived;
                 if(client is NostrClient nostrClient2)
                 {

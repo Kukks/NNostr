@@ -157,7 +157,7 @@ namespace NNostr.Client
             }
         }
 
-        private async Task ProcessChannel<T>(Channel<T> channel, Func<T, CancellationToken, Task<bool>> processor,
+        internal static async Task ProcessChannel<T>(Channel<T> channel, Func<T, CancellationToken, Task<bool>> processor,
             CancellationToken cancellationToken)
         {
             while (await channel.Reader.WaitToReadAsync(cancellationToken))
