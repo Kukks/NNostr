@@ -36,18 +36,6 @@ public class Nip11Middleware : IMiddleware
             {
                 nips.Add(11);
             }
-            if (_options.CurrentValue.EnableNip16)
-            {
-                nips.Add(16);
-            }
-            if (_options.CurrentValue.EnableNip33)
-            {
-                nips.Add(33);
-            }
-            if (_options.CurrentValue.EnableNip20)
-            {
-                nips.Add(20);
-            }
             if (_options.CurrentValue.Nip13Difficulty is not 0)
             {
                 nips.Add(13);
@@ -90,4 +78,7 @@ public class Nip11Middleware : IMiddleware
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("software")] public string Software { get; set; }
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)][JsonPropertyName("version")] public string Version { get; set; }
     }
+    
+    
+    
 }

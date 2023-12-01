@@ -147,13 +147,10 @@ namespace Relay
             }
 
             var evtsToSave = evt;
-            if (_options.CurrentValue.EnableNip16)
-            {
-                var replaceableEvents = evt.Where(e => e.Kind is >= 10000 and < 20000).ToArray();
+                var replaceableEvents = evt.Where(e => e.Kind == 0 || e.Kind ==3 || (e.Kind is >= 10000 and < 20000)).ToArray();
                 var replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
-                    
                     replacedEvents.AddRange(context.Events.Where(evt2 =>
                         evt2.PublicKey.Equals(eventsToReplace.PublicKey) && eventsToReplace.Kind == evt2.Kind &&
                         evt2.CreatedAt < eventsToReplace.CreatedAt));
@@ -161,13 +158,13 @@ namespace Relay
 
                 context.Events.RemoveRange(replacedEvents);
                 removedEvents.AddRange(replacedEvents.Select(e => e.Id));
-                //ephemeral events
-                evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
-            }
-            if (_options.CurrentValue.EnableNip33)
-            {
-                var replaceableEvents = evt.Where(e => e.Kind is >= 30000 and < 40000).ToArray();
-                var replacedEvents = new List<RelayNostrEvent>();
+            
+            
+            //ephemeral events
+            evtsToSave = evt.Where(e => e.Kind is not (>= 20000 and < 30000)).ToArray();
+            
+                replaceableEvents = evt.Where(e => e.Kind is >= 30000 and < 40000).ToArray();
+                replacedEvents = new List<RelayNostrEvent>();
                 foreach (var eventsToReplace in replaceableEvents)
                 {
                     var dValue = eventsToReplace.GetTaggedData<RelayNostrEvent, RelayNostrEventTag>("d").FirstOrDefault() ?? "";
@@ -186,7 +183,7 @@ namespace Relay
 
                 context.Events.RemoveRange(replacedEvents);
                 removedEvents.AddRange(replacedEvents.Select(e => e.Id));
-            }
+            
 
             List<NostrEventsMatched> eventsMatcheds = new();
             _stateManager.ConnectionSubscriptionsToFilters.Keys.ForEach(pair =>

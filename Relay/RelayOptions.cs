@@ -14,6 +14,7 @@ public class RelayOptions
 
     //whether the cost is per byte of the event json
     public bool EventCostPerByte { get; set; } = false;
+    
 
     //cost for a new pubkey to post events to relay
     public long PubKeyCost { get; set; } = 0;
@@ -24,13 +25,6 @@ public class RelayOptions
     public bool EnableNip09 { get; set; } = true;
 
     public bool EnableNip11 { get; set; } = true;
-
-    public bool EnableNip16 { get; set; } = true;
-
-    public bool EnableNip33 { get; set; } = true;
-
-    public bool EnableNip20 { get; set; } = true;
-
     public int Nip13Difficulty { get; set; } = 0;
     public string? RelayName { get; set; }
     public string? RelayDescription { get; set; }

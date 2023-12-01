@@ -56,27 +56,14 @@ namespace Relay
                         }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
                         {
                             var added = await _nostrEventService.AddEvent(new[] {e});
-                            if (_options.CurrentValue.EnableNip20)
-                            {
+                            
                                 foreach (var tuple in added)
                                 {
                                     WriteOkMessage(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
                                 }
-                            }
-                            else if (added.Any(tuple => !tuple.success))
-                            {
-                                foreach (var tuple in added)
-                                {
-                                    _stateManager.PendingMessages.Writer.TryWrite((evt.Item1,
-                                        JsonSerializer.Serialize(new[]
-                                        {
-                                            "NOTICE",
-                                            $"Event {tuple.eventId} was not added to this relay. This relay charges {_options.CurrentValue.PubKeyCost} for new pubkey registrations and {_options.CurrentValue.EventCost} per event {(_options.CurrentValue.EventCostPerByte ? "byte" : "")}. Send a message to {_options.CurrentValue.AdminPublicKey} for more info "
-                                        })));
-                                }
-                            }
+                            
                         }
-                        else if (_options.CurrentValue.EnableNip20)
+                        else 
                         {
                             WriteOkMessage(evt.Item1, e.Id, false, "invalid: event could not be verified");
                         }
