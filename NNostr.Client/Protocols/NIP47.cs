@@ -376,6 +376,7 @@ public static class NIP47
         [JsonPropertyName("fees_paid")] public long FeesPaidMsats { get; set; }
         [JsonPropertyName("created_at")] public long CreatedAt { get; set; }
         [JsonPropertyName("expires_at")] public long? ExpiresAt { get; set; }
+        [JsonPropertyName("settled_at")] public long? SettledAt { get; set; }
         [JsonPropertyName("metadata")] public JsonObject Metadata { get; set; }
     }
 
