@@ -10,9 +10,7 @@ namespace NNostr.Client.Protocols;
 
 public static class NIP47
 {
-
-
-    public class NostrWalletConnectServer:IAsyncDisposable
+    public class NostrWalletConnectServer : IAsyncDisposable
     {
         private readonly INostrClient _nostrClient;
         private readonly ECPrivKey _mainKey;
@@ -23,7 +21,8 @@ public static class NIP47
         private string subscriptionId = Guid.NewGuid().ToString();
         private readonly Channel<NostrEvent> _requests = Channel.CreateUnbounded<NostrEvent>();
 
-        public NostrWalletConnectServer(INostrClient nostrClient, ECPrivKey mainKey, string[] supportedCommands, Func<ECXOnlyPubKey, Nip47Request, CancellationToken,Task<Nip47Response>> requestHandler)
+        public NostrWalletConnectServer(INostrClient nostrClient, ECPrivKey mainKey, string[] supportedCommands,
+            Func<ECXOnlyPubKey, Nip47Request, CancellationToken, Task<Nip47Response>> requestHandler)
         {
             _nostrClient = nostrClient;
             _mainKey = mainKey;
@@ -33,19 +32,11 @@ public static class NIP47
             _mainPubKeyHex = _mainPubKey.ToHex();
         }
 
-        public async Task Stop()
+        public async Task StartAsync(CancellationToken cancellationToken)
         {
-            if(_cts is not null)
-                _cts.Cancel();
-            _nostrClient.EventsReceived -= NostrClientOnEventsReceived;
-            await _nostrClient.CloseSubscription(subscriptionId);
-        }
-        
-        public async Task Start(CancellationToken cancellationToken = default)
-        {
-            await Stop();
+            await StopAsync(cancellationToken);
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var infoEvent = await  CreateInfoEvent(_supportedCommands).ComputeIdAndSignAsync(_mainKey);
+            var infoEvent = await CreateInfoEvent(_supportedCommands).ComputeIdAndSignAsync(_mainKey);
             await _nostrClient.PublishEvent(infoEvent, cancellationToken);
             _nostrClient.EventsReceived += NostrClientOnEventsReceived;
             _ = NostrClient.ProcessChannel(_requests, OnRequest, cancellationToken);
@@ -53,15 +44,23 @@ public static class NIP47
             {
                 new()
                 {
-                   ReferencedPublicKeys = new []{_mainPubKeyHex},
-                   Limit = 0,
-                   Kinds = new []{RequestEventKind}
+                    ReferencedPublicKeys = new[] {_mainPubKeyHex},
+                    Limit = 0,
+                    Kinds = new[] {RequestEventKind}
                 }
             };
             await _nostrClient.CreateSubscription(subscriptionId, filters, cancellationToken);
         }
 
-        private async  Task<bool> OnRequest(NostrEvent evt, CancellationToken arg2)
+        public async Task StopAsync(CancellationToken cancellationToken)
+        {
+            if (_cts is not null)
+                _cts.Cancel();
+            _nostrClient.EventsReceived -= NostrClientOnEventsReceived;
+            await _nostrClient.CloseSubscription(subscriptionId, cancellationToken);
+        }
+
+        private async Task<bool> OnRequest(NostrEvent evt, CancellationToken arg2)
         {
             Nip47Response? response;
             try
@@ -79,15 +78,13 @@ public static class NIP47
                             Message = $"{request.Method} is not implemented"
                         }
                     };
-
                 }
                 else
                 {
                     response = await _requestHandler.Invoke(evt.GetPublicKey(), request, arg2);
-
                 }
             }
-            catch (Exception e) when (e is not OperationCanceledException )
+            catch (Exception e) when (e is not OperationCanceledException)
             {
                 response = new Nip47Response()
                 {
@@ -99,12 +96,13 @@ public static class NIP47
                     }
                 };
             }
-            if(response is null)
+
+            if (response is null)
                 return true;
             var eventReply = CreateResponseEvent(evt, response);
             await eventReply.EncryptNip04EventAsync(_mainKey, null, true);
             eventReply = await eventReply.ComputeIdAndSignAsync(_mainKey, false);
-            await  _nostrClient.PublishEvent(eventReply, arg2);
+            await _nostrClient.PublishEvent(eventReply, arg2);
             return true;
         }
 
@@ -116,66 +114,75 @@ public static class NIP47
         {
             foreach (var nostrEvent in e.events)
             {
-                if(nostrEvent.Kind != RequestEventKind || 
-                   nostrEvent.GetTaggedPublicKeys().FirstOrDefault() != _mainPubKeyHex || 
-                   Math.Abs((DateTimeOffset.UtcNow - nostrEvent.CreatedAt)!.Value.TotalMinutes) <= 10 ||
-                   ! _seenEvents.Add(nostrEvent.Id) )
+                if (nostrEvent.Kind != RequestEventKind ||
+                    nostrEvent.GetTaggedPublicKeys().FirstOrDefault() != _mainPubKeyHex ||
+                    Math.Abs((DateTimeOffset.UtcNow - nostrEvent.CreatedAt)!.Value.TotalMinutes) <= 10 ||
+                    !_seenEvents.Add(nostrEvent.Id))
                     continue;
-                
+
                 _requests.Writer.TryWrite(nostrEvent);
             }
         }
 
         public async ValueTask DisposeAsync()
         {
-            await Stop();
+            await StopAsync(CancellationToken.None);
             _cts?.Dispose();
             _requests.Writer.TryComplete();
         }
     }
-    
-    public static async Task<string[]?> FetchNIP47AvailableCommands(this INostrClient nostrClient, ECXOnlyPubKey serverKey, CancellationToken cancellationToken = default)
+
+    public static async Task<string[]?> FetchNIP47AvailableCommands(this INostrClient nostrClient,
+        ECXOnlyPubKey serverKey, CancellationToken cancellationToken = default)
     {
         var filter = new NostrSubscriptionFilter()
         {
-            Authors = new []{serverKey.ToHex()},
+            Authors = new[] {serverKey.ToHex()},
             Limit = 1,
-            Kinds = new []{InfoEvent}
+            Kinds = new[] {InfoEvent}
         };
-        
-        var result =await nostrClient.FetchEvents(new[]{filter}, cancellationToken);
-        return   result?.FirstOrDefault()?.Content?.Split(" ");
+
+        var result = await nostrClient.FetchEvents(new[] {filter}, cancellationToken);
+        return result?.FirstOrDefault()?.Content?.Split(" ");
     }
-    
-    public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey, ECPrivKey secretKey, Nip47Request request, CancellationToken cancellationToken = default)
+
+    public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
+        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default)
+    {
+        return await nostrClient.SendNIP47Request(serverKey, secretKey, request.ToNip47Request(), cancellationToken);
+    }
+    public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
+        ECPrivKey secretKey, Nip47Request request, CancellationToken cancellationToken = default)
     {
         var evt = CreateRequestEvent(request, serverKey);
         await evt.EncryptNip04EventAsync(secretKey, null, true);
         evt = await evt.ComputeIdAndSignAsync(secretKey, false);
-        var responseEvt = await  nostrClient.SendEventAndWaitForReply(evt, cancellationToken);
-        return JsonSerializer.Deserialize<Nip47Response>(responseEvt.Content);
-            
+        var responseEvt = await nostrClient.SendEventAndWaitForReply(evt, cancellationToken);
+        var decryptedContent = await responseEvt.DecryptNip04EventAsync(secretKey, null, true);
+        return JsonSerializer.Deserialize<Nip47Response>(decryptedContent);
     }
+
     public static class ErrorCodes
     {
-        public const  string RateLimited = "RATE_LIMITED";
-        public const  string NotImplemented = "NOT_IMPLEMENTED";
-        public const  string InsufficientBalance = "INSUFFICIENT_BALANCE";
-        public const  string QuotaExceeded = "QUOTA_EXCEEDED";
-        public const  string Restricted = "RESTRICTED";
-        public const  string Unauthorized = "UNAUTHORIZED";
-        public const  string Internal = "INTERNAL";
-        public const  string Other = "OTHER";
+        public const string RateLimited = "RATE_LIMITED";
+        public const string NotImplemented = "NOT_IMPLEMENTED";
+        public const string InsufficientBalance = "INSUFFICIENT_BALANCE";
+        public const string QuotaExceeded = "QUOTA_EXCEEDED";
+        public const string Restricted = "RESTRICTED";
+        public const string Unauthorized = "UNAUTHORIZED";
+        public const string Internal = "INTERNAL";
+        public const string Other = "OTHER";
     }
-    
+
     public const string UriScheme = "nostr+walletconnect";
 
-    public static Uri CreateUri(ECXOnlyPubKey pubkey,ECPrivKey secret, Uri relay, string? lud16 = null, params Uri[] additionalRelays)
+    public static Uri CreateUri(ECXOnlyPubKey pubkey, ECPrivKey secret, Uri relay, string? lud16 = null,
+        params Uri[] additionalRelays)
     {
         NameValueCollection query = HttpUtility.ParseQueryString(string.Empty);
         query["relay"] = relay.ToString();
         query["secret"] = secret.CreateXOnlyPubKey().ToHex();
-        if(lud16 is not null)
+        if (lud16 is not null)
             query["lud16"] = lud16;
         if (additionalRelays.Length > 0)
         {
@@ -184,40 +191,41 @@ public static class NIP47
                 query.Add("relay", additionalRelay.ToString());
             }
         }
+
         var uriBuilder = new UriBuilder(UriScheme, pubkey.ToHex())
         {
             Query = query.ToString()
         };
         return uriBuilder.Uri;
     }
-    
-    public static (ECXOnlyPubKey pubkey, ECPrivKey secret, Uri[] , string? lud16) ParseUri(Uri uri)
+
+    public static (ECXOnlyPubKey pubkey, ECPrivKey secret, Uri[] relays, string lud16) ParseUri(Uri uri)
     {
         var query = HttpUtility.ParseQueryString(uri.Query);
         var lud16 = query["lud16"];
-        var relays = query.GetValues("relay")?? Array.Empty<string>();
-        var relaysUris =   relays.Prepend(query["relay"]).Select(s => new Uri(s)).ToArray();
-        return (NostrExtensions.ParsePubKey(uri.Host), NostrExtensions.ParseKey(query["secret"]),  relaysUris, lud16);
+        var relays = query.GetValues("relay") ?? Array.Empty<string>();
+        var relaysUris = relays.Prepend(query["relay"]).Select(s => new Uri(s)).ToArray();
+        return (NostrExtensions.ParsePubKey(uri.Host), NostrExtensions.ParseKey(query["secret"]), relaysUris, lud16);
     }
-    
+
     public static NostrEvent CreateRequestEvent(Nip47Request request, ECXOnlyPubKey destination)
     {
-        var result =  new NostrEvent()
+        var result = new NostrEvent()
         {
             Kind = RequestEventKind,
             Content = JsonSerializer.Serialize(request),
             CreatedAt = DateTimeOffset.Now
-            
         };
         result.SetReferencedPublickKey(destination);
         return result;
     }
+
     public static NostrEvent CreateInfoEvent(string[] supportedCommands)
     {
-        var result =  new NostrEvent()
+        var result = new NostrEvent()
         {
             Kind = InfoEvent,
-            Content = string.Join(" ",supportedCommands),
+            Content = string.Join(" ", supportedCommands),
             CreatedAt = DateTimeOffset.Now
         };
         return result;
@@ -236,38 +244,224 @@ public static class NIP47
 
         return result;
     }
-    
-    
-    
+
+
     public const int InfoEvent = 13194;
     public const int RequestEventKind = 23194;
     public const int ResponseEventKind = 23194;
 
     public class Nip47Request
     {
-        [JsonPropertyName("method")]
-        public string Method { get; set; }
-        [JsonPropertyName("params")]
-        public JsonObject Parameters { get; set; }
+        [JsonPropertyName("method")] public string Method { get; set; }
+        [JsonPropertyName("params")] public JsonObject Parameters { get; set; }
+
+        public static Nip47Request Create(string method, object parameters)
+        {
+            return new Nip47Request()
+            {
+                Method = method,
+                Parameters = JsonSerializer.Deserialize<JsonObject>(JsonSerializer.Serialize(parameters))
+            };
+        }
     }
-    
+
     public class Nip47Response
     {
-        [JsonPropertyName("result_type")]
-        public string ResultType { get; set; }
-        [JsonPropertyName("error")]
-        public Nip47ResponseError? Error { get; set; }
-        [JsonPropertyName("result")]
-        public JsonObject? Result { get; set; }
-
+        [JsonPropertyName("result_type")] public string ResultType { get; set; }
+        [JsonPropertyName("error")] public Nip47ResponseError? Error { get; set; }
+        [JsonPropertyName("result")] public JsonObject? Result { get; set; }
+        
+        public T? Deserialize<T>() where T:class
+        {
+            return Result?.Deserialize<T>();
+        }
 
         public class Nip47ResponseError
         {
-            [JsonPropertyName("code")]
-            public string Code { get; set; }
-            [JsonPropertyName("message")]
-            public string Message { get; set; }
+            [JsonPropertyName("code")] public string Code { get; set; }
+            [JsonPropertyName("message")] public string Message { get; set; }
         }
     }
     
+
+
+    public interface INIP47Request
+    {
+        [JsonIgnore] string Method { get; }
+
+        public virtual Nip47Request ToNip47Request()
+        {
+            return Nip47Request.Create(Method, this);
+        }
+    }
+
+    public class PayKeysendRequest : INIP47Request
+    {
+        public string Method => "pay_keysend";
+
+        [JsonPropertyName("amount")] public decimal Amount { get; set; }
+        [JsonPropertyName("pubkey")] public string Pubkey { get; set; }
+
+        [JsonPropertyName("preimage")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Preimage { get; set; }
+
+        [JsonPropertyName("tlv_records")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public TlvRecord[]? TlvRecords { get; set; }
+    }
+
+    public class TlvRecord
+    {
+        [JsonPropertyName("type")] public string Type { get; set; }
+
+        [JsonPropertyName("value")] public string Value { get; set; }
+    }
+
+    public class PayInvoiceRequest : INIP47Request
+    {
+        public string Method => "pay_invoice";
+        public string Invoice { get; set; }
+
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        [JsonPropertyName("amount")]
+        public decimal? Amount { get; set; }
+    }
+
+    public class PayInvoiceResponse
+    {
+        [JsonPropertyName("preimage")] public string Preimage { get; set; }
+    }
+
+    public class MakeInvoiceRequest : INIP47Request
+    {
+        public string Method => "make_invoice";
+        [JsonPropertyName("amount")] public long AmountMsats { get; set; }
+
+        [JsonPropertyName("description")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string Description { get; set; }
+
+        [JsonPropertyName("description_hash")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string DescriptionHash { get; set; }
+
+        [JsonPropertyName("expiry")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public long? ExpirySeconds { get; set; }
+    }
+
+
+    public class Nip47Transaction
+    {
+// "type": "incoming", // "incoming" for invoices, "outgoing" for payments
+// "invoice": "string", // encoded invoice, optional
+// "description": "string", // invoice's description, optional
+// "description_hash": "string", // invoice's description hash, optional
+// "preimage": "string", // payment's preimage, optional if unpaid
+// "payment_hash": "string", // Payment hash for the payment
+// "amount": 123, // value in msats
+// "fees_paid": 123, // value in msats
+// "created_at": unixtimestamp, // invoice/payment creation time
+// "expires_at": unixtimestamp, // invoice expiration time, optional if not applicable
+// "metadata": {} // generic metadata that can be used to add things like zap/boostagram details for a payer name/comment/etc.
+
+        [JsonPropertyName("type")] public string Type { get; set; }
+        [JsonPropertyName("invoice")] public string? Invoice { get; set; }
+        [JsonPropertyName("description")] public string? Description { get; set; }
+        [JsonPropertyName("description_hash")] public string? DescriptionHash { get; set; }
+        [JsonPropertyName("preimage")] public string? Preimage { get; set; }
+        [JsonPropertyName("payment_hash")] public string PaymentHash { get; set; }
+        [JsonPropertyName("amount")] public long AmountMsats { get; set; }
+        [JsonPropertyName("fees_paid")] public long FeesPaidMsats { get; set; }
+        [JsonPropertyName("created_at")] public long CreatedAt { get; set; }
+        [JsonPropertyName("expires_at")] public long? ExpiresAt { get; set; }
+        [JsonPropertyName("metadata")] public JsonObject Metadata { get; set; }
+    }
+
+    public class GetInfoRequest : INIP47Request
+    {
+        public string Method => "get_info";
+    }
+
+    public class GetInfoResponse
+    {
+// "alias": "string",
+// "color": "hex string",
+// "pubkey": "hex string",
+// "network": "string", // mainnet, testnet, signet, or regtest
+// "block_height": 1,
+// "block_hash": "hex string",
+// "methods": ["pay_invoice", "get_balance", "make_invoice", "lookup_invoice", "list_transactions", "get_info"], // list of supported methods for this connection
+// }
+// }
+
+        [JsonPropertyName("alias")] public string Alias { get; set; }
+        [JsonPropertyName("color")] public string Color { get; set; }
+        [JsonPropertyName("pubkey")] public string Pubkey { get; set; }
+        [JsonPropertyName("network")] public string Network { get; set; }
+        [JsonPropertyName("block_height")] public long BlockHeight { get; set; }
+        [JsonPropertyName("block_hash")] public string BlockHash { get; set; }
+        [JsonPropertyName("methods")] public string[] Methods { get; set; }
+    }
+
+    public class GetBalanceResponse
+    {
+        [JsonPropertyName("balance")] public long BalanceMsats { get; set; }
+    }
+
+    public class ListTransactionsRequest : INIP47Request
+    {
+// "from": 1693876973, // starting timestamp in seconds since epoch (inclusive), optional
+// "until": 1703225078, // ending timestamp in seconds since epoch (inclusive), optional
+// "limit": 10, // maximum number of invoices to return, optional
+// "offset": 0, // offset of the first invoice to return, optional
+// "unpaid": true, // include unpaid invoices, optional, default false
+// "type": "incoming", // "incoming" for invoices, "outgoing" for payments, undefined for both
+
+        public string Method => "list_transactions";
+
+        [JsonPropertyName("from")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public long From { get; set; }
+
+        [JsonPropertyName("until")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public long Until { get; set; }
+
+        [JsonPropertyName("limit")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public int Limit { get; set; }
+
+        [JsonPropertyName("offset")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public int Offset { get; set; }
+
+        [JsonPropertyName("unpaid")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool Unpaid { get; set; }
+
+        [JsonPropertyName("type")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public string? Type { get; set; }
+    }
+
+
+    public class ListTransactionsResponse
+    {
+        [JsonPropertyName("transactions")] public Nip47Transaction[] Transactions { get; set; }
+    }
+
+    public class LookupInvoiceRequest : INIP47Request
+    {
+        public string Method => "lookup_invoice";
+
+        [JsonPropertyName("payment_hash")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? PaymentHash { get; set; }
+
+        [JsonPropertyName("invoice")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string? Invoice { get; set; }
+    }
 }

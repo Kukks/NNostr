@@ -556,22 +556,20 @@ namespace NNostr.Client
 #endif
         }
 
-        public static async Task<NostrEvent> SendEventAndWaitForReply(this INostrClient client,NostrEvent nostrEvent,
+        public static async Task<NostrEvent> SendEventAndWaitForReply(this INostrClient client, NostrEvent nostrEvent, NostrSubscriptionFilter[] expectedReplyFilter,
             CancellationToken cancellationToken)
         {
             var tcs = new TaskCompletionSource<NostrEvent>();
             var evtId = nostrEvent.Id;
-            var sentTo = nostrEvent.GetTaggedPublicKeys();
             var subId = Guid.NewGuid().ToString();
             
-
             void OnClientOnEventsReceived(object sender, (string subscriptionId, NostrEvent[] events) args)
             {
                 if (args.subscriptionId == subId)
                 {
                     foreach (var nostrEvent in args.events)
                     {
-                        if (nostrEvent.Id == evtId)
+                        if (nostrEvent.Id != evtId)
                         {
                             tcs.TrySetResult(nostrEvent);
                             break;
@@ -598,14 +596,7 @@ namespace NNostr.Client
             {
                 nostrClient2.StateChanged += NostrClientOnStateChanged2;
             }
-            await client.CreateSubscription(subId, new[]
-            {
-                new NostrSubscriptionFilter
-                {
-                    ReferencedEventIds = new[] {evtId},
-                    ReferencedPublicKeys = sentTo?.Any() is true ? sentTo : null
-                }
-            }, cancellationToken);
+            await client.CreateSubscription(subId, expectedReplyFilter, cancellationToken);
             try
             {
                 await client.PublishEvent(nostrEvent, cancellationToken);
@@ -622,6 +613,25 @@ namespace NNostr.Client
                     nostrClient3.StateChanged -= NostrClientOnStateChanged2;
                 }
             }
+        }
+        
+        public static async Task<NostrEvent> SendEventAndWaitForReply(this INostrClient client,NostrEvent nostrEvent,
+            CancellationToken cancellationToken)
+        {
+            
+            var evtId = nostrEvent.Id;
+ 
+            var expectedReplyFilter = new[]
+            {
+                new NostrSubscriptionFilter
+                {
+                    ReferencedEventIds = new[] {evtId},
+                    Authors = new []{nostrEvent.PublicKey}
+                }
+            };
+            
+            return await  SendEventAndWaitForReply(client, nostrEvent, expectedReplyFilter, cancellationToken);
+            
 
         }
     }
