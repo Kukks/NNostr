@@ -36,7 +36,7 @@ public static class NIP47
         {
             await StopAsync(cancellationToken);
             _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            var infoEvent = await CreateInfoEvent(_supportedCommands).ComputeIdAndSignAsync(_mainKey);
+            var infoEvent = await CreateInfoEvent(_supportedCommands, Array.Empty<string>()).ComputeIdAndSignAsync(_mainKey);
             await _nostrClient.PublishEvent(infoEvent, cancellationToken);
             _nostrClient.EventsReceived += NostrClientOnEventsReceived;
             _ = NostrClient.ProcessChannel(_requests, OnRequest, cancellationToken);
@@ -132,7 +132,7 @@ public static class NIP47
         }
     }
 
-    public static async Task<string[]?> FetchNIP47AvailableCommands(this INostrClient nostrClient,
+    public static async Task<(string[] Commands, string[] Notifications)?> FetchNIP47AvailableCommands(this INostrClient nostrClient,
         ECXOnlyPubKey serverKey, CancellationToken cancellationToken = default)
     {
         var filter = new NostrSubscriptionFilter()
@@ -142,8 +142,15 @@ public static class NIP47
             Kinds = new[] {InfoEvent}
         };
 
-        var result = await nostrClient.FetchEvents(new[] {filter}, cancellationToken);
-        return result?.FirstOrDefault()?.Content?.Split(" ");
+        var result = (await nostrClient.FetchEvents(new[] {filter}, cancellationToken)).FirstOrDefault();
+        if (result is null)
+        {
+            return null;
+        }
+        var commands =  result.Content!.Split(" ");
+        var notifications = result?.GetTaggedData("notifications").SelectMany(s => s.Split(" ")).Distinct().ToArray();
+        
+        return (commands, notifications);
     }
 
     public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
@@ -151,6 +158,16 @@ public static class NIP47
     {
         return await nostrClient.SendNIP47Request(serverKey, secretKey, request.ToNip47Request(), cancellationToken);
     }
+    
+    public static async Task<T> SendNIP47Request<T>(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
+        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default) where T : class
+    {
+        var res =  await nostrClient.SendNIP47Request(serverKey, secretKey, request, cancellationToken);
+        if (res.Error is not null)
+            throw new Exception($"{res.Error.Code}:{res.Error.Message}");
+        return res.Deserialize<T>() ?? throw new Exception("Invalid response");
+    }
+    
     public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
         ECPrivKey secretKey, Nip47Request request, CancellationToken cancellationToken = default)
     {
@@ -160,6 +177,29 @@ public static class NIP47
         var responseEvt = await nostrClient.SendEventAndWaitForReply(evt, cancellationToken);
         var decryptedContent = await responseEvt.DecryptNip04EventAsync(secretKey, null, true);
         return JsonSerializer.Deserialize<Nip47Response>(decryptedContent);
+    }
+
+    public static async IAsyncEnumerable<Nip47Notification> SubscribeNip47Notifications(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
+        ECPrivKey secretKey,CancellationToken cancellationToken )
+    {
+        await foreach (var nostrEvent in nostrClient.SubscribeForEvents(new NostrSubscriptionFilter[]
+                       {
+                           new()
+                           {
+                               Authors = new[] {serverKey.ToHex()},
+                               ReferencedPublicKeys = new[] {secretKey.CreateXOnlyPubKey().ToHex()}
+                           }
+                       }, false, cancellationToken))
+        {
+                if (nostrEvent.Kind != NotificationEventKind)
+                    continue;
+                
+                var decryptedContent = await nostrEvent.DecryptNip04EventAsync(secretKey, null, true);
+                var notification =  JsonSerializer.Deserialize<Nip47Notification>(decryptedContent);
+                if (notification is not null)
+                    yield return notification;
+            
+        }
     }
 
     public static class ErrorCodes
@@ -220,14 +260,22 @@ public static class NIP47
         return result;
     }
 
-    public static NostrEvent CreateInfoEvent(string[] supportedCommands)
+    public static NostrEvent CreateInfoEvent(string[] supportedCommands, string[] supportedNotifications)
     {
+        if (supportedNotifications.Any() is true && !supportedCommands.Contains("notifications"))
+        {
+            supportedCommands = supportedCommands.Append("notifications").ToArray();
+        }
         var result = new NostrEvent()
         {
             Kind = InfoEvent,
             Content = string.Join(" ", supportedCommands),
             CreatedAt = DateTimeOffset.Now
         };
+        if (supportedNotifications.Any())
+        {
+            result.SetTag("notifications", string.Join(" ", supportedNotifications));
+        }
         return result;
     }
 
@@ -248,7 +296,8 @@ public static class NIP47
 
     public const int InfoEvent = 13194;
     public const int RequestEventKind = 23194;
-    public const int ResponseEventKind = 23194;
+    public const int ResponseEventKind = 23195;
+    public const int NotificationEventKind = 23196;
 
     public class Nip47Request
     {
@@ -263,6 +312,19 @@ public static class NIP47
                 Parameters = JsonSerializer.Deserialize<JsonObject>(JsonSerializer.Serialize(parameters))
             };
         }
+    }
+
+    public class Nip47Notification
+    {
+        
+        [JsonPropertyName("notification_type")] public string NotificationType { get; set; }
+        [JsonPropertyName("notification")] public JsonObject? Notification { get; set; }
+        
+        public T? Deserialize<T>() where T:class
+        {
+            return Notification?.Deserialize<T>();
+        }
+
     }
 
     public class Nip47Response
@@ -284,8 +346,17 @@ public static class NIP47
     }
     
 
+public class NIP47Request:INIP47Request
+{
+    public NIP47Request(string method)
+    {
+        Method = method;
+    }
 
-    public interface INIP47Request
+    public string Method { get; }
+}
+
+public interface INIP47Request
     {
         [JsonIgnore] string Method { get; }
 
@@ -340,11 +411,11 @@ public static class NIP47
 
         [JsonPropertyName("description")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string Description { get; set; }
+        public string? Description { get; set; }
 
         [JsonPropertyName("description_hash")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-        public string DescriptionHash { get; set; }
+        public string? DescriptionHash { get; set; }
 
         [JsonPropertyName("expiry")]
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

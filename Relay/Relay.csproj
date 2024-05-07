@@ -1,26 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
+        <TargetFramework>net8.0</TargetFramework>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <AssemblyVersion>0.0.18</AssemblyVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="BTCPayServer.Client" Version="1.7.2" />
-      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="3.9.1" />
-      <PackageReference Include="LinqKit" Version="1.2.4" />
-      <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="7.1.4" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="7.0.5" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="7.0.5">
+      <PackageReference Include="BTCPayServer.Client" Version="1.7.4" />
+      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="4.4.3" />
+      <PackageReference Include="LinqKit" Version="1.2.5" />
+      <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="8.1.5" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="NBitcoin" Version="7.0.25" />
-      <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.1" />
-      <PackageReference Include="Npgsql" Version="7.0.4" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="7.0.4" />
+      <PackageReference Include="NBitcoin" Version="7.0.36" />
+      <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.4" />
+      <PackageReference Include="Npgsql" Version="8.0.2" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
     </ItemGroup>
 
     <ItemGroup>

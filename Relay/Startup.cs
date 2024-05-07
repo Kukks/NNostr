@@ -42,7 +42,7 @@ namespace Relay
                 builder.AddInterceptors(provider.GetRequiredService<SecondLevelCacheInterceptor>());
             });
             services.AddEFSecondLevelCache(options =>
-                options.UseMemoryCacheProvider(CacheExpirationMode.Sliding, TimeSpan.FromMinutes(5)).DisableLogging(true).UseCacheKeyPrefix("EF_"));
+                options.UseMemoryCacheProvider(CacheExpirationMode.Sliding, TimeSpan.FromMinutes(5)).ConfigureLogging(false).UseCacheKeyPrefix("EF_"));
             services.AddHostedService<MigrationHostedService>();
             services.AddHostedService<Purger>();
             services.AddHostedService(provider => provider.GetRequiredService<EventNostrMessageHandler>());

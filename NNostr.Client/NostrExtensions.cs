@@ -626,7 +626,7 @@ namespace NNostr.Client
                 new NostrSubscriptionFilter
                 {
                     ReferencedEventIds = new[] {evtId},
-                    Authors = new []{nostrEvent.PublicKey}
+                    ReferencedPublicKeys = new []{nostrEvent.PublicKey}
                 }
             };
             

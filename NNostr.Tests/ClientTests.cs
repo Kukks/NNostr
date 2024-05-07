@@ -19,26 +19,43 @@ public class NostrWalletCOnnectTests
 
     }
 
-    // [Fact]
+     // [Fact]
     public async Task CanParseUri()
     {
-        var uri = new Uri(
-            "REDACTED");
+        
+        var uri = new Uri("");
         var result = NIP47.ParseUri(uri);
 
         CompositeNostrClient client = new CompositeNostrClient(result.relays);
         await client.ConnectAndWaitUntilConnected();
         var commands = await client.FetchNIP47AvailableCommands(result.pubkey);
 
-        var resp = await client.SendNIP47Request(result.pubkey, result.secret, new NIP47.GetInfoRequest());
+        var infoResponse = await client.SendNIP47Request<NIP47.GetInfoResponse>(result.pubkey, result.secret, new NIP47.GetInfoRequest());
         
-        Assert.Null(resp.Error);
-        var infoResponse = resp.Deserialize<NIP47.GetInfoResponse>();
         Assert.NotNull(infoResponse);
+
+        var txs = await client.SendNIP47Request<NIP47.ListTransactionsResponse>(result.pubkey, result.secret,
+            new NIP47.ListTransactionsRequest());
+        var balance = await client.SendNIP47Request<NIP47.GetBalanceResponse>(result.pubkey, result.secret, new NIP47.NIP47Request("get_balance"));
+
+        var invoice = await client.SendNIP47Request<NIP47.Nip47Transaction>(result.pubkey, result.secret, new NIP47.MakeInvoiceRequest()
+        {
+            AmountMsats = 1000,
+            Description = "test",
+            DescriptionHash = null,
+            ExpirySeconds = 1000
+        });
+
+        var invoiceResponse = await client.SendNIP47Request<NIP47.Nip47Transaction>(result.pubkey, result.secret, new NIP47.LookupInvoiceRequest()
+        {
+            PaymentHash = invoice.PaymentHash
+        });
         
-        
-        var txsList = await client.SendNIP47Request(result.pubkey, result.secret, new NIP47.ListTransactionsRequest());
-        var txs = txsList.Deserialize<NIP47.ListTransactionsResponse>();
+        var invoiceResponse2 = await client.SendNIP47Request<NIP47.Nip47Transaction>(result.pubkey, result.secret, new NIP47.LookupInvoiceRequest()
+        {
+            PaymentHash = "dummy"
+        });
+
         
         var x = false;
         
