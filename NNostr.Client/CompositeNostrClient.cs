@@ -64,10 +64,10 @@ public class CompositeNostrClient: INostrClient
             client.Dispose();       
         }
     }
-
-    public Task ConnectAndWaitUntilConnected(CancellationToken token = default)
+    
+    public Task ConnectAndWaitUntilConnected(CancellationToken connectionCancellationToken = default, CancellationToken lifetimeCancellationToken = default)
     {
-        return Task.WhenAll(_clients.Select(c => c.ConnectAndWaitUntilConnected(token)));
+        return Task.WhenAll(_clients.Select(c => c.ConnectAndWaitUntilConnected(connectionCancellationToken, lifetimeCancellationToken)));
     }
 
     public event EventHandler<string>? MessageReceived;

@@ -228,16 +228,23 @@ namespace NNostr.Client
 
         public async Task ConnectAndWaitUntilConnected(CancellationToken token = default)
         {
+            
+        }
+
+        public async Task ConnectAndWaitUntilConnected(CancellationToken connectionCancellationToken = default,
+            CancellationToken lifetimeCancellationToken = default)
+        {
+           
             if (WebSocket?.State == WebSocketState.Open)
             {
                 return;
             }
 
-            _cts ??= CancellationTokenSource.CreateLinkedTokenSource(token);
+            _cts = CancellationTokenSource.CreateLinkedTokenSource(lifetimeCancellationToken);
 
             WebSocket?.Dispose();
             WebSocket = await Connect();
-            await WaitUntilConnected(_cts.Token).ContinueWith(task =>
+            await WaitUntilConnected(connectionCancellationToken).ContinueWith(task =>
             {
                 if (task.Status == TaskStatus.RanToCompletion)
                 {

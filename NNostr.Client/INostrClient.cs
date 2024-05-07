@@ -12,7 +12,10 @@ public interface INostrClient : IDisposable
     Task CreateSubscription(string subscriptionId, NostrSubscriptionFilter[] filters,
         CancellationToken token = default);
 
-    Task ConnectAndWaitUntilConnected(CancellationToken token = default);
+    Task ConnectAndWaitUntilConnected(CancellationToken token = default) => ConnectAndWaitUntilConnected(token, token);
+
+    public Task ConnectAndWaitUntilConnected(CancellationToken connectionCancellationToken = default,
+        CancellationToken lifetimeCancellationToken = default);
         
     event EventHandler<string>? MessageReceived;
     event EventHandler<string> InvalidMessageReceived;
