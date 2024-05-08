@@ -306,10 +306,12 @@ public static class NIP47
 
         public static Nip47Request Create(string method, object parameters)
         {
+            var parametersJson = JsonSerializer.Deserialize<JsonObject>(JsonSerializer.Serialize(parameters));
+            parametersJson?.Remove("Method");
             return new Nip47Request()
             {
                 Method = method,
-                Parameters = JsonSerializer.Deserialize<JsonObject>(JsonSerializer.Serialize(parameters))
+                Parameters = parametersJson?? new JsonObject()
             };
         }
     }
