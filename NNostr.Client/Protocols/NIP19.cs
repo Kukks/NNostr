@@ -185,7 +185,7 @@ public static class NIP19
     class NostrRelayNoteParser : BaseNostrNoteParser<NostrRelayNote>
     {
         public const byte RelayKey = 0x00;
-        protected override string Hrp => Hrp;
+        protected override string Hrp => HRP;
         public const string HRP = "nrelay";
 
         public override NostrRelayNote? Parse(byte[] data)
