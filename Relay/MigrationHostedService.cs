@@ -73,7 +73,8 @@ namespace Relay
             {
                 var evts = context.Events.Where(e =>
                     e.CreatedAt == null ||
-                    e.CreatedAt < DateTime.UtcNow.AddDays(-_monitor.CurrentValue.PurgeAfterDays.Value)).Take(paging).ToList();
+                    e.CreatedAt < DateTime.UtcNow.AddDays(-_monitor.CurrentValue.PurgeAfterDays.Value))
+                    .OrderBy(@event => @event.CreatedAt).Take(paging).ToList();
                 context.Events.RemoveRange(evts);
                 await context.SaveChangesAsync();
                 potentiallyMoreResults = evts.Count == paging;
