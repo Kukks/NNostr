@@ -3,7 +3,7 @@
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        <AssemblyVersion>0.0.18</AssemblyVersion>
+        <AssemblyVersion>0.0.19</AssemblyVersion>
         <Nullable>enable</Nullable>
     </PropertyGroup>
 
@@ -19,8 +19,8 @@
       </PackageReference>
       <PackageReference Include="NBitcoin" Version="7.0.36" />
       <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.4" />
-      <PackageReference Include="Npgsql" Version="8.0.2" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.2" />
+      <PackageReference Include="Npgsql" Version="8.0.3" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
     </ItemGroup>
 
     <ItemGroup>
