@@ -1,4 +1,5 @@
 using System.Collections.Specialized;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
@@ -180,7 +181,7 @@ public static class NIP47
     }
 
     public static async IAsyncEnumerable<Nip47Notification> SubscribeNip47Notifications(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
-        ECPrivKey secretKey,CancellationToken cancellationToken )
+        ECPrivKey secretKey,[EnumeratorCancellation] CancellationToken cancellationToken )
     {
         await foreach (var nostrEvent in nostrClient.SubscribeForEvents(new NostrSubscriptionFilter[]
                        {
