@@ -226,11 +226,6 @@ namespace NNostr.Client
         }
 
 
-        public async Task ConnectAndWaitUntilConnected(CancellationToken token = default)
-        {
-            
-        }
-
         public async Task ConnectAndWaitUntilConnected(CancellationToken connectionCancellationToken = default,
             CancellationToken lifetimeCancellationToken = default)
         {
