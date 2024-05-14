@@ -18,7 +18,15 @@ namespace NNostr.Client.JsonConverters
                 throw new JsonException("datetime was not in number format");
             }
 
-            return DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64());
+            try
+            {
+                return DateTimeOffset.FromUnixTimeSeconds(reader.GetInt64());
+            }
+            catch (Exception e)
+            {
+                throw new JsonException(e.Message, e);
+            }
+            
         }
 
         public override void Write(Utf8JsonWriter writer, DateTimeOffset? value, JsonSerializerOptions options)
