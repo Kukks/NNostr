@@ -352,7 +352,7 @@ namespace NNostr.Client
             try
             {
                 
-                await client.CreateSubscription(subscriptionId, filters);
+                await client.CreateSubscription(subscriptionId, filters, linkedCts.Token);
                 while (true)
                 {
                     var delayTask = tcs.Task;

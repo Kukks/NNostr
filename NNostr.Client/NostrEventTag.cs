@@ -8,7 +8,7 @@ namespace NNostr.Client
     [JsonConverter(typeof(NostrEventTagJsonConverter))]
     public class NostrEventTag
     {
-        private static JsonSerializerOptions _unsafeJsonEscapingOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
+        private static readonly JsonSerializerOptions _unsafeJsonEscapingOptions = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
         public string TagIdentifier { get; set; }
         public List<string> Data { get; set; } = new();
 
