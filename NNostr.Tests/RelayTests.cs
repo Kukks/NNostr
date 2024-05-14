@@ -46,7 +46,6 @@ public class RelayTests
         {
             WebSocket?.Dispose();
             WebSocket = null;
-
         }
     }
 
@@ -81,6 +80,10 @@ public class RelayTests
             }
         }, CancellationToken.None);
 
+        var prevSubCts = new CancellationTokenSource();
+
+        await client.SendEventsAndWaitUntilReceived(new[] {event1}, CancellationToken.None);
+;
         var evts = client.SubscribeForEvents(new[]
         {
             new NostrSubscriptionFilter()
@@ -90,10 +93,10 @@ public class RelayTests
         }, true, CancellationToken.None);
 
 
-        await client.SendEventsAndWaitUntilReceived(new[] {event1}, CancellationToken.None);
-
         Assert.Equal("TESTX", await tcseose.Task);
         var matched = await evts.SingleAsync();
+
+        await prevSubCts.CancelAsync();
         Assert.Equal(matched.Id, event1.Id);
     }
 
@@ -195,8 +198,8 @@ public class RelayTests
             {
                 Kind = 4,
                 Content = "test content",
-                Tags = new List<NostrEventTag>()
-                {
+                Tags =
+                [
                     new NostrEventTag()
                     {
                         TagIdentifier = "p",
@@ -205,7 +208,7 @@ public class RelayTests
                             user2Pub
                         }
                     }
-                }
+                ]
             }.ComputeIdAndSignAsync(user2),
 
             await new NostrEvent()
@@ -239,46 +242,51 @@ public class RelayTests
         await client.SendEventsAndWaitUntilReceived(eventsThatFitSubscriptionFilter1
             .Concat(eventsThatFitSubscriptionFilter2)
             .Concat(randomEvents).Shuffle().ToArray(), CancellationToken.None);
-        var evtsForSubscripion1 = new ConcurrentBag<NostrEvent>();
+        // var evtsForSubscripion1 = new ConcurrentBag<NostrEvent>();
         // Wait for EOSE message
-        var subscription1EoseReceived = new TaskCompletionSource<bool>();
-        client.EoseReceived += (sender, subscriptionId) =>
-        {
-            if (subscriptionId == "subscription_1")
-            {
-                Assert.Equal(3, evtsForSubscripion1.Count);
-                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
-                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
-                Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
-                subscription1EoseReceived.SetResult(true);
-            }
-        };
-        client.EventsReceived += (sender, events) =>
-        {
-            if (events.subscriptionId == "subscription_1")
-            {
-                foreach (var evt in events.events)
-                {
-                    evtsForSubscripion1.Add(evt);
-                }
-            }
-        };
+        // var subscription1EoseReceived = new TaskCompletionSource<bool>();
+        // client.EoseReceived += (sender, subscriptionId) =>
+        // {
+        //     if (subscriptionId == "subscription_1")
+        //     {
+        //         Assert.Equal(3, evtsForSubscripion1.Count);
+        //         Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
+        //         Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
+        //         Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
+        //         subscription1EoseReceived.SetResult(true);
+        //     }
+        // };
+        // client.EventsReceived += (sender, events) =>
+        // {
+        //     if (events.subscriptionId == "subscription_1")
+        //     {
+        //         foreach (var evt in events.events)
+        //         {
+        //             evtsForSubscripion1.Add(evt);
+        //         }
+        //     }
+        // };
         // Create a subscription with multiple filters
-        await client.CreateSubscription("subscription_1", filtersForSubscription1, CancellationToken.None);
+        // await client.CreateSubscription("subscription_1", filtersForSubscription1, CancellationToken.None);
 
-
-        // Wait for EOSE message to be received
-        await subscription1EoseReceived.Task;
+        var  evtsForSubscripion1 = await client.SubscribeForEvents(filtersForSubscription1, true, CancellationToken.None).ToListAsync();
+        Assert.Equal(3, evtsForSubscripion1.Count);
+        Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[0].Id);
+        Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter1[1].Id);
+        Assert.Contains(evtsForSubscripion1, @event => @event.Id == eventsThatFitSubscriptionFilter2[0].Id);
+        //
+        
+        // // Wait for EOSE message to be received
+        // await subscription1EoseReceived.Task;
     }
-    
-    
+
 
     [Fact]
     public async Task CanUseClient()
     {
         await using var server = new RelayTestServer(_output, true);
         var client = new TestServerClient(server.Server);
-        await  client.Connect();
+        await client.Connect();
         var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
         var khex = k.ToHex();
         var user1 = ClientTests.CreateUser(khex);
@@ -290,16 +298,16 @@ public class RelayTests
         };
         await evt.ComputeIdAndSignAsync(user1.PrivateKey);
         await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None);
-        
     }
+
     [Fact]
     public async Task CanUseClient2()
     {
-        
         await using var server = new RelayTestServer(_output, true);
         var client = new TestServerClient(server.Server);
-       
-        Assert.Null(client.State);;
+
+        Assert.Null(client.State);
+        ;
         var connectedStateRaised = new TaskCompletionSource();
         client.StateChanged += (sender, state) =>
         {
@@ -310,7 +318,7 @@ public class RelayTests
                     break;
             }
         };
-        await  client.Connect();
+        await client.Connect();
         await connectedStateRaised.Task;
         var k = ECPrivKey.Create(RandomUtils.GetBytes(32));
         var khex = k.ToHex();
@@ -326,7 +334,7 @@ public class RelayTests
             await evt.ComputeIdAndSignAsync(user1.PrivateKey);
             evts.Add(evt);
         }
-        
+
         await client.SendEventsAndWaitUntilReceived(evts.ToArray(), CancellationToken.None);
         var subscription = new NostrSubscriptionFilter()
         {
@@ -336,7 +344,7 @@ public class RelayTests
         var counter = await client.SubscribeForEvents(new[] {subscription}, true, CancellationToken.None).CountAsync();
 
         Assert.Equal(2, counter);
-        
+
         var t = client.SubscribeForEvents(new[] {subscription}, false, CancellationToken.None).CountAsync();
 
         await client.Disconnect();

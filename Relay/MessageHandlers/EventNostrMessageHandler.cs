@@ -55,12 +55,9 @@ namespace Relay
                             }
                         }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
                         {
-                            var added = await _nostrEventService.AddEvent(new[] {e});
+                            var tuple = await _nostrEventService.AddEvent(e);
                             
-                                foreach (var tuple in added)
-                                {
-                                    WriteOkMessage(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
-                                }
+                            WriteOkMessage(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
                             
                         }
                         else 
@@ -87,7 +84,7 @@ namespace Relay
             })));
         }
 
-        public async Task Handle(string connectionId, string msg)
+        public async Task HandleCore(string connectionId, string msg)
         {
             if (!msg.StartsWith($"[\"{PREFIX}"))
             {

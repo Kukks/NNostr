@@ -11,7 +11,8 @@ namespace Relay;
 public class RelayNostrEventTag : NostrEventTag, IEqualityComparer<NostrEventTag>
 {
     [JsonIgnore]
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    [Key]
+    [DatabaseGenerated(DatabaseGeneratedOption.None)]
     public string Id { get; set; }
 
     [JsonIgnore] public string EventId { get; set; }

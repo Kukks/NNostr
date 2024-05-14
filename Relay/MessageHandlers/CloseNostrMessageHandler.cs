@@ -19,7 +19,7 @@ namespace Relay
             _logger = logger;
         }
 
-        public async Task Handle(string connectionId, string msg)
+        public async Task HandleCore(string connectionId, string msg)
         {
             if (!msg.StartsWith($"[\"{PREFIX}"))
             {

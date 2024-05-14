@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
@@ -79,12 +78,10 @@ public class AdminChatBot : IHostedService
         }
     }
 
-    private void NostrEventServiceOnNewEvents(object? sender, RelayNostrEvent[] e)
+    private void NostrEventServiceOnNewEvents(object? sender, RelayNostrEvent relayNostrEvent)
     {
-        foreach (var nostrEvent in e)
-        {
-            PendingMessages.Writer.TryWrite(nostrEvent);
-        }
+        
+        PendingMessages.Writer.TryWrite(relayNostrEvent);
     }
 
     private async Task ProcessMessages(CancellationToken cancellationToken)
@@ -215,7 +212,7 @@ Active subscriptions: " + _stateManager.ConnectionSubscriptionsToFilters.Count )
         eventReply.Id = eventReply.ComputeId<RelayNostrEvent, RelayNostrEventTag>();
         eventReply.Signature =
             eventReply.ComputeSignature<RelayNostrEvent, RelayNostrEventTag>(AdminKey);
-        await _nostrEventService.AddEvent(new[] {eventReply});
+        await _nostrEventService.AddEvent(eventReply);
     }
 
 

@@ -32,7 +32,7 @@ namespace Relay
             _logger = logger;
         }
 
-        public async Task Handle(string connectionId, string msg)
+        public async Task HandleCore(string connectionId, string msg)
         {
             if (!msg.StartsWith($"[\"{PREFIX}"))
             {
@@ -57,21 +57,16 @@ namespace Relay
                     ConnectionId = connectionId,
                     SubscriptionId = id
                 };
-
+                _nostrEventService.InvokeMatched(matched);
+                
                 if (_options.CurrentValue.EnableNip15)
                 {
-                    if (matched.Events.Any())
-                    {
-                    }
-
                     matched.OnSent.Task.ContinueWith(task =>
                     {
                         return _stateManager.PendingMessages.Writer.WaitToWriteAsync().AsTask().ContinueWith(_ =>
                             SendEOSE(connectionId, id));
                     });
                 }
-
-                _nostrEventService.InvokeMatched(matched);
             }
             else if (_options.CurrentValue.EnableNip15)
             {
