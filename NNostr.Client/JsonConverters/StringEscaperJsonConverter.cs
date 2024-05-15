@@ -180,7 +180,7 @@ public static string JavaScriptStringDecode(string encodedString, bool removeDou
             throw new JsonException("value was not a string");
         }
 
-        return JavaScriptStringDecode(reader.GetString(), false);
+        return reader.GetString();
     }
 
     public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
@@ -191,7 +191,7 @@ public static string JavaScriptStringDecode(string encodedString, bool removeDou
         }
         else
         {
-            writer.WriteStringValue(JavaScriptStringEncode(value, false));
+            writer.WriteStringValue(value);
         }
     }
 }

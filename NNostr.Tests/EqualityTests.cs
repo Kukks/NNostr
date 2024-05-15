@@ -37,6 +37,22 @@ public class EqualityTests
         var y = JsonSerializer.Deserialize<NostrEvent>(x);
         Assert.NotNull(y);
         Assert.Equal(nostrEvent.Content, y.Content);
+        Assert.True(nostrEvent.Verify());
+        Assert.True(y.Verify());
+
+        var newx  = JsonSerializer.Deserialize<NostrEvent>(@"{
+  ""id"": ""70603616fd393ccc7cc5b8fd1eed1dd1f4d540401632a9d87c3a31c6eb36269f"",
+  ""pubkey"": ""a4199ba85c577c36fa39b32fb401b6433420648793a742793cff2d110611b791"",
+  ""created_at"": 1715767998,
+  ""kind"": 1,
+  ""tags"": [],
+  ""content"": ""{\""RoundStates\"":[],\""CoinJoinFeeRateMedians\"":[],\""AffiliateInformation\"":{\""RunningAffiliateServers\"":[],\""AffiliateData\"":{}}}"",
+  ""sig"": ""9115ccdc90f55307109b5f1650113212822b5ac78b641dae67f507a6c4d334d1ea13779f0b2f2e2c03abb8ef2489d165c4933180c1858b2563af330709788764""
+}");
+        
+        Assert.True(newx.Verify());
+
+
 
     }
     
