@@ -1,3 +1,4 @@
+using System.Data.Entity;
 using System.Linq;
 using LinqKit;
 using Microsoft.EntityFrameworkCore;
@@ -11,7 +12,7 @@ public static class Extensions
         NostrSubscriptionFilter[] filters) where TNostrEvent : BaseNostrEvent<TEventTag>
         where TEventTag : NostrEventTag
     {
-        var results = filters.Select(filter => { return events.Filter<TNostrEvent, TEventTag>(filter); });
+        var results = filters.Select(events.Filter<TNostrEvent, TEventTag>);
         // union the results
         return results.Aggregate((a, b) => a.Union(b));
     }
@@ -78,6 +79,6 @@ public static class Extensions
             filterQuery = filterQuery.OrderByDescending(e => e.CreatedAt).Take(filter.Limit.Value);
         }
 
-        return filterQuery;
+        return filterQuery.AsStreaming();
     }
 }

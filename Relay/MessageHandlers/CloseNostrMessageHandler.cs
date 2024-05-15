@@ -19,6 +19,8 @@ namespace Relay
             _logger = logger;
         }
 
+        public ILogger Logger => _logger;
+
         public async Task HandleCore(string connectionId, string msg)
         {
             if (!msg.StartsWith($"[\"{PREFIX}"))

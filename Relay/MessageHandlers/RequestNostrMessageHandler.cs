@@ -1,14 +1,9 @@
-using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using NNostr.Client;
-using Relay.Data;
-
 namespace Relay
 {
     public class RequestNostrMessageHandler : INostrMessageHandler
@@ -32,12 +27,15 @@ namespace Relay
             _logger = logger;
         }
 
+        public Microsoft.Extensions.Logging.ILogger Logger => _logger;
+
         public async Task HandleCore(string connectionId, string msg)
         {
             if (!msg.StartsWith($"[\"{PREFIX}"))
             {
                 return;
             }
+
             var json = JsonDocument.Parse(msg).RootElement;
 
             var id = json[1].GetString();
@@ -48,40 +46,26 @@ namespace Relay
             }
 
             _stateManager.AddSubscription(connectionId, id, filters.ToArray());
+            _logger.LogInformation($"Added subscription {id} for {connectionId}");
             var matchedEvents = await _nostrEventService.GetFromDB(filters.ToArray());
-            if (matchedEvents.Length > 0)
+            using (matchedEvents.Item1)
             {
-                var matched = new NostrEventsMatched()
+                var count = 0;
+                await foreach (var e in matchedEvents.Item2)
                 {
-                    Events = matchedEvents,
-                    ConnectionId = connectionId,
-                    SubscriptionId = id
-                };
-                _nostrEventService.InvokeMatched(matched);
-                
-                if (_options.CurrentValue.EnableNip15)
-                {
-                    matched.OnSent.Task.ContinueWith(task =>
-                    {
-                        return _stateManager.PendingMessages.Writer.WaitToWriteAsync().AsTask().ContinueWith(_ =>
-                            SendEOSE(connectionId, id));
-                    });
+                    await _stateManager.SendEvent(connectionId, id, e);
+                    count++;
                 }
+                
+                _logger.LogInformation($"sent {count} initial events to {connectionId} for subscription {id}");
             }
-            else if (_options.CurrentValue.EnableNip15)
+
+            if (_options.CurrentValue.EnableNip15)
             {
-                await SendEOSE(connectionId, id);
+                await _stateManager.SendEOSE(connectionId, id);
             }
         }
 
-        private async Task SendEOSE(string connectionId, string subscriptionId)
-        {
-            await _stateManager.PendingMessages.Writer.WriteAsync((connectionId,
-                JsonSerializer.Serialize(new[]
-                {
-                    "EOSE",
-                    subscriptionId
-                })));
-        }
+       
     }
 }

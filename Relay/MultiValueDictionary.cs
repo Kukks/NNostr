@@ -49,6 +49,17 @@ public class ConcurrentMultiDictionary<TKey, TValue>
     public bool Remove(TKey key)
     {
         return _dictionary.TryRemove(key, out _);
+    }  
+    public bool Remove(TKey key, out TValue[]? items)
+    {
+        if(_dictionary.TryRemove(key, out var x))
+        {
+            items = x.ToArray();
+            return true;
+
+        }
+        items = null;
+        return false;
     }
     public bool Remove(TKey key, TValue value)
     {

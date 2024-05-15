@@ -31,14 +31,15 @@ namespace Relay
         public virtual async Task OnConnected(WebSocket socket)
         {
             var newConnection = Guid.NewGuid().ToString().Replace("-", "");
-            WebSocketWebSocketConnectionManager.Connections.TryAdd(newConnection, socket);
+            _stateManager.Connections.TryAdd(newConnection, socket);
             _logger.LogInformation($"New connection: {newConnection}");
+            _stateManager.AddConnection(newConnection);
             NewConnection?.Invoke(this, newConnection);
         }
 
         public virtual async Task OnDisconnected(WebSocket socket)
         {
-            var id = WebSocketWebSocketConnectionManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
+            var id = _stateManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
 
             if (id is not null)
             {
@@ -50,7 +51,7 @@ namespace Relay
 
         public Task ReceiveAsync(WebSocket socket, WebSocketReceiveResult result, string msg)
         {
-            var id = WebSocketWebSocketConnectionManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
+            var id = _stateManager.Connections.FirstOrDefault(pair => pair.Value == socket).Key;
 
             _logger.LogTrace($"Received message from connection: {id} \n{msg}");
             return Task.WhenAll(_nostrMessageHandlers.AsParallel().Select(handler => handler.Handle(id, msg)));

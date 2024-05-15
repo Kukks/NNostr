@@ -57,15 +57,17 @@ namespace Relay
                    Encoding.UTF8.GetByteCount(evt.ToIdPreimage<RelayNostrEvent, RelayNostrEventTag>(false));
         }
 
-        public async Task<(string eventId, bool success, string reason, List<NostrEventsMatched> eventsMatcheds)> AddEvent(RelayNostrEvent evt)
+        public async Task<(string eventId, bool success, string reason, List<NostrEventsMatched> eventsMatcheds)>
+            AddEvent(RelayNostrEvent evt)
         {
             if (!((_options.CurrentValue.Nip22BackwardLimit is null ||
-                 (DateTimeOffset.UtcNow - evt.CreatedAt) <= _options.CurrentValue.Nip22BackwardLimit) &&
-                (_options.CurrentValue.Nip22ForwardLimit is null ||
-                 (evt.CreatedAt - DateTimeOffset.UtcNow) <= _options.CurrentValue.Nip22ForwardLimit)))
+                   (DateTimeOffset.UtcNow - evt.CreatedAt) <= _options.CurrentValue.Nip22BackwardLimit) &&
+                  (_options.CurrentValue.Nip22ForwardLimit is null ||
+                   (evt.CreatedAt - DateTimeOffset.UtcNow) <= _options.CurrentValue.Nip22ForwardLimit)))
             {
                 return (evt.Id, false,
-                    "invalid: event creation date is too far off from the current time. Is your system clock in sync?", null);
+                    "invalid: event creation date is too far off from the current time. Is your system clock in sync?",
+                    null);
             }
 
             await using var context = await _dbContextFactory.CreateDbContextAsync();
@@ -82,7 +84,8 @@ namespace Relay
                     if (balance is null || (balance.CurrentBalance - cost) < 0)
                     {
                         return (evt.Id, false,
-                            "invalid: this relay has a cost associated with this event and you did not have sufficient balance", null);
+                            "invalid: this relay has a cost associated with this event and you did not have sufficient balance",
+                            null);
                     }
 
                     balance.CurrentBalance -= cost;
@@ -142,7 +145,6 @@ namespace Relay
                         {
                             await context.SaveChangesAsync();
                             await tx.CommitAsync();
-                        
                         }
                         catch (Exception e)
                         {
@@ -154,22 +156,14 @@ namespace Relay
                 }
                 catch (Exception e)
                 {
-                   
                     return (evt.Id, false, "an error occurred around this event's processing", null);
                 }
-                
-                
             }
 
-            var inserted = isEphemeral || 0 < await context.Events.Upsert(evt).NoUpdate().RunAsync();
-
-            if (!inserted)
+            var inserted = false;
+            if (!isEphemeral)
             {
-                return (evt.Id, true, "duplicate: Event has been processed before", null);
-            }
-            else
-            {
-                if (!isEphemeral)
+                try
                 {
                     var i = 0;
                     evt.Tags.ForEach(tag =>
@@ -178,39 +172,47 @@ namespace Relay
                         tag.Id = $"{evt.Id}-{i}-{tag.TagIdentifier}";
                         i++;
                     });
-                    await context.EventTags.UpsertRange(evt.Tags).NoUpdate().RunAsync();
+                    await context.Events.AddAsync(evt);
+                    await context.SaveChangesAsync();
+                    inserted = true;
                 }
-                
-                
-                List<NostrEventsMatched> eventsMatcheds = new();
-                _stateManager.ConnectionSubscriptionsToFilters.Keys.ForEach(pair =>
+                catch (DbUpdateException e)
                 {
-                    if (!_stateManager.ConnectionSubscriptionsToFilters.TryGetValues(pair, out var values)) return;
-                    foreach (var subscriptionFilter in values)
-                    {
-                        var matched = new[] {evt}.Filter<RelayNostrEvent, RelayNostrEventTag>(subscriptionFilter)
-                            .ToArray();
-                        if (!matched.Any()) continue;
-
-                        var connectionId = pair[..pair.IndexOf('-')];
-                        var subscriptionId = pair[(pair.IndexOf('-') + 1)..];
-                        eventsMatcheds.Add(new NostrEventsMatched()
-                        {
-                            Events = matched,
-                            ConnectionId = connectionId,
-                            SubscriptionId = subscriptionId,
-                            OnSent = new TaskCompletionSource()
-                            
-                        });
-                    }
-                });
-
-
-                NewEvents?.Invoke(this, evt);
-                eventsMatcheds.ForEach(InvokeMatched);
-                
-                return (evt.Id, true, "", eventsMatcheds);
+                    inserted = false;
+                }
             }
+
+            if (!isEphemeral && !inserted)
+            {
+                return (evt.Id, true, "duplicate: Event has been processed before", null);
+            }
+
+            List<NostrEventsMatched> eventsMatcheds = new();
+            _stateManager.ConnectionSubscriptionsToFilters.Keys.ForEach(pair =>
+            {
+                if (!_stateManager.ConnectionSubscriptionsToFilters.TryGetValues(pair, out var values)) return;
+                foreach (var subscriptionFilter in values)
+                {
+                    var matched = new[] {evt}.Filter<RelayNostrEvent, RelayNostrEventTag>(subscriptionFilter)
+                        .ToArray();
+                    if (!matched.Any()) continue;
+
+                    var connectionId = pair[..pair.IndexOf('-')];
+                    var subscriptionId = pair[(pair.IndexOf('-') + 1)..];
+                    eventsMatcheds.Add(new NostrEventsMatched()
+                    {
+                        Events = matched,
+                        ConnectionId = connectionId,
+                        SubscriptionId = subscriptionId,
+                    });
+                }
+            });
+
+
+            NewEvents?.Invoke(this, evt);
+            eventsMatcheds.ForEach(InvokeMatched);
+
+            return (evt.Id, true, "", eventsMatcheds);
         }
 
         public void InvokeMatched(NostrEventsMatched eventsMatched)
@@ -218,13 +220,13 @@ namespace Relay
             EventsMatched?.Invoke(this, eventsMatched);
         }
 
-        public async Task<RelayNostrEvent[]> GetFromDB(NostrSubscriptionFilter[] filter)
+        public async Task<(IDisposable, IAsyncEnumerable<RelayNostrEvent>)> GetFromDB(NostrSubscriptionFilter[] filter)
         {
-            await using var context = await _dbContextFactory.CreateDbContextAsync();
-            return await context.Events
+            var context = await _dbContextFactory.CreateDbContextAsync();
+            return (context, context.Events
                 .Include(e => e.Tags)
                 .Where(e => !e.Deleted)
-                .Filter<RelayNostrEvent, RelayNostrEventTag>(filter).ToArrayAsync();
+                .Filter<RelayNostrEvent, RelayNostrEventTag>(filter).ToAsyncEnumerable());
         }
     }
 }

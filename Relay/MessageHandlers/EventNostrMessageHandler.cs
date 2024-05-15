@@ -51,18 +51,18 @@ namespace Relay
 
                             if (count < _options.CurrentValue.Nip13Difficulty)
                             {
-                                WriteOkMessage(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.CurrentValue.Nip13Difficulty}");
+                               await  _stateManager.SendOk(evt.Item1, e.Id, false, $"pow: difficulty {count} is less than {_options.CurrentValue.Nip13Difficulty}");
                             }
                         }else if (e.Verify<RelayNostrEvent, RelayNostrEventTag>())
                         {
                             var tuple = await _nostrEventService.AddEvent(e);
                             
-                            WriteOkMessage(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
+                            await  _stateManager.SendOk(evt.Item1, tuple.eventId, tuple.success, tuple.reason);
                             
                         }
                         else 
                         {
-                            WriteOkMessage(evt.Item1, e.Id, false, "invalid: event could not be verified");
+                            await  _stateManager.SendOk(evt.Item1, e.Id, false, "invalid: event could not be verified");
                         }
                     }
                     catch (Exception exception)
@@ -73,16 +73,8 @@ namespace Relay
             }
         }
 
-        private void WriteOkMessage(string connection, string eventId, bool success, string reason)
-        {
-            _stateManager.PendingMessages.Writer.TryWrite((connection, JsonSerializer.Serialize(new object[]
-            {
-                "OK",
-                eventId,
-                success,
-                reason
-            })));
-        }
+   
+        public ILogger Logger => _logger;
 
         public async Task HandleCore(string connectionId, string msg)
         {

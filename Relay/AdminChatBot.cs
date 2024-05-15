@@ -72,8 +72,8 @@ public class AdminChatBot : IHostedService
             {
                 string message =
                     $"This relay has not yet been configured. We have generated a temporary admin key that you can use to configure. Simply import the following {TemporaryAdminPrivateKey.ToNIP19()} and send a DM to itself with \"/admin config\" to see config and \"/admin update {{CONFIG}} to set config.";
-                _stateManager.PendingMessages.Writer.TryWrite((newConnection,
-                    JsonSerializer.Serialize(new[] {"NOTICE", message})));
+                _ = _stateManager.Send(newConnection,
+                    JsonSerializer.Serialize(new[] {"NOTICE", message}));
             }
         }
     }
@@ -147,7 +147,7 @@ private string AdminPubKey => AdminKey.CreateXOnlyPubKey().ToBytes().AsSpan().To
                         {
                             case "info":
                                 await ReplyToEvent(evt.Id,evt.PublicKey, @"
-Active connections: " + _connectionManager.Connections.Count + @"
+Active connections: " + _stateManager.Connections.Count + @"
 Active subscriptions: " + _stateManager.ConnectionSubscriptionsToFilters.Count );
                                 break;
                             case "config":
