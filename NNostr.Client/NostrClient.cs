@@ -135,7 +135,7 @@ namespace NNostr.Client
                 case "ok":
                     var eventId = json[1].GetString();
                     var success = json[2].GetBoolean();
-                    var msg = json.GetArrayLength() == 3 ? json[2].GetString() : String.Empty;
+                    var msg = json.GetArrayLength() > 3 ? json[3].GetString() : String.Empty;
                     OkReceived?.Invoke(this, (eventId, success, msg));
                     break;
             }
