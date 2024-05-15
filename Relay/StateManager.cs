@@ -126,7 +126,7 @@ namespace Relay
                     {
                         if (Connections.TryGetValue(connectionId, out var conn))
                         {
-                            _logger.LogInformation($"sending message to connection {connectionId}\n{message}");
+                            _logger.LogTrace($"sending message to connection {connectionId}\n{message}");
                             await conn.SendMessageAsync(message, cancellationToken);
                         }
                         else

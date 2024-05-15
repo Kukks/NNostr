@@ -57,7 +57,7 @@ namespace Relay
                    Encoding.UTF8.GetByteCount(evt.ToIdPreimage<RelayNostrEvent, RelayNostrEventTag>(false));
         }
 
-        public async Task<(string eventId, bool success, string reason, List<NostrEventsMatched> eventsMatcheds)>
+        public async Task<(string eventId, bool success, string reason)>
             AddEvent(RelayNostrEvent evt)
         {
             if (!((_options.CurrentValue.Nip22BackwardLimit is null ||
@@ -66,8 +66,7 @@ namespace Relay
                    (evt.CreatedAt - DateTimeOffset.UtcNow) <= _options.CurrentValue.Nip22ForwardLimit)))
             {
                 return (evt.Id, false,
-                    "invalid: event creation date is too far off from the current time. Is your system clock in sync?",
-                    null);
+                    "invalid: event creation date is too far off from the current time. Is your system clock in sync?");
             }
 
             await using var context = await _dbContextFactory.CreateDbContextAsync();
@@ -84,8 +83,7 @@ namespace Relay
                     if (balance is null || (balance.CurrentBalance - cost) < 0)
                     {
                         return (evt.Id, false,
-                            "invalid: this relay has a cost associated with this event and you did not have sufficient balance",
-                            null);
+                            "invalid: this relay has a cost associated with this event and you did not have sufficient balance");
                     }
 
                     balance.CurrentBalance -= cost;
@@ -156,7 +154,7 @@ namespace Relay
                 }
                 catch (Exception e)
                 {
-                    return (evt.Id, false, "an error occurred around this event's processing", null);
+                    return (evt.Id, false, "an error occurred around this event's processing");
                 }
             }
 
@@ -184,7 +182,7 @@ namespace Relay
 
             if (!isEphemeral && !inserted)
             {
-                return (evt.Id, true, "duplicate: Event has been processed before", null);
+                return (evt.Id, true, "duplicate: Event has been processed before");
             }
 
             List<NostrEventsMatched> eventsMatcheds = new();
@@ -212,7 +210,7 @@ namespace Relay
             NewEvents?.Invoke(this, evt);
             eventsMatcheds.ForEach(InvokeMatched);
 
-            return (evt.Id, true, "", eventsMatcheds);
+            return (evt.Id, true, "");
         }
 
         public void InvokeMatched(NostrEventsMatched eventsMatched)
