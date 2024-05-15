@@ -17,20 +17,17 @@ namespace Relay
         private readonly StateManager _stateManager;
         private readonly ILogger<ConnectionManager> _logger;
         private readonly NostrEventService _nostrEventService;
-        private readonly IOptionsMonitor<RelayOptions> _options;
-        private object _lock = new();
         private Task _processingSendMessages = Task.CompletedTask;
         private CancellationTokenSource _cts;
         public ConcurrentDictionary<string, WebSocket> Connections { get; set; } = new();
 
 
         public ConnectionManager(StateManager stateManager, ILogger<ConnectionManager> logger,
-            NostrEventService nostrEventService, IOptionsMonitor<RelayOptions> options)
+            NostrEventService nostrEventService)
         {
             _stateManager = stateManager;
             _logger = logger;
             _nostrEventService = nostrEventService;
-            _options = options;
         }
 
         public virtual Task StartAsync(CancellationToken cancellationToken)
@@ -59,6 +56,7 @@ namespace Relay
                     })));
             }
             e.OnSent.SetResult();
+            _logger.LogInformation($"Sent {e.Events.Length} events to {e.ConnectionId} for subscription {e.SubscriptionId}");
         }
 
         private async Task ProcessSendMessages(CancellationToken cancellationToken)

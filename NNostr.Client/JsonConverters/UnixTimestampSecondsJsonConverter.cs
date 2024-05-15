@@ -24,7 +24,7 @@ namespace NNostr.Client.JsonConverters
             }
             catch (Exception e)
             {
-                throw new JsonException(e.Message, e);
+                return null;
             }
             
         }

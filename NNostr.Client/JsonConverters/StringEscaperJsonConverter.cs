@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -94,6 +96,78 @@ public class StringEscaperJsonConverter : JsonConverter<string?>
         return sb.ToString();
     }
 
+public static string JavaScriptStringDecode(string encodedString, bool removeDoubleQuotes)
+{
+    if (string.IsNullOrEmpty(encodedString))
+        return encodedString;
+
+    if (removeDoubleQuotes && encodedString.StartsWith("\"") && encodedString.EndsWith("\""))
+    {
+        encodedString = encodedString.Substring(1, encodedString.Length - 2);
+    }
+
+    var sb = new StringBuilder(encodedString.Length);
+    for (int i = 0; i < encodedString.Length; i++)
+    {
+        char c = encodedString[i];
+        if (c == '\\' && i + 1 < encodedString.Length)
+        {
+            switch (encodedString[i + 1])
+            {
+                case 'b':
+                    sb.Append('\b');
+                    i++;
+                    break;
+                case 't':
+                    sb.Append('\t');
+                    i++;
+                    break;
+                case 'n':
+                    sb.Append('\n');
+                    i++;
+                    break;
+                case 'f':
+                    sb.Append('\f');
+                    i++;
+                    break;
+                case 'r':
+                    sb.Append('\r');
+                    i++;
+                    break;
+                case '"':
+                    sb.Append('"');
+                    i++;
+                    break;
+                case '\\':
+                    sb.Append('\\');
+                    i++;
+                    break;
+                case 'u':
+                    if (i + 5 < encodedString.Length)
+                    {
+                        string hexCode = encodedString.Substring(i + 2, 4);
+                        if (ushort.TryParse(hexCode, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out ushort charCode))
+                        {
+                            sb.Append((char)charCode);
+                            i += 5;
+                        }
+                    }
+                    break;
+                default:
+                    // If no known escape sequence, add the backslash as it is
+                    sb.Append(c);
+                    break;
+            }
+        }
+        else
+        {
+            sb.Append(c);
+        }
+    }
+
+    return sb.ToString();
+}
+
     public override string Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
     {
         if (reader.TokenType == JsonTokenType.Null)
@@ -106,7 +180,7 @@ public class StringEscaperJsonConverter : JsonConverter<string?>
             throw new JsonException("value was not a string");
         }
 
-        return JavaScriptStringEncode(reader.GetString(), false);
+        return JavaScriptStringDecode(reader.GetString(), false);
     }
 
     public override void Write(Utf8JsonWriter writer, string? value, JsonSerializerOptions options)
@@ -117,7 +191,7 @@ public class StringEscaperJsonConverter : JsonConverter<string?>
         }
         else
         {
-            writer.WriteStringValue(value);
+            writer.WriteStringValue(JavaScriptStringEncode(value, false));
         }
     }
 }

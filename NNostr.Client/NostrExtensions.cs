@@ -4,17 +4,20 @@ using System.Security.Cryptography;
 using System.Threading.Channels;
 using LinqKit;
 using NBitcoin.Secp256k1;
+using NNostr.Client.JsonConverters;
 using SHA256 = System.Security.Cryptography.SHA256;
 
 namespace NNostr.Client
 {
     public static class NostrExtensions
     {
-        public static string ToJson<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, bool withoutId)
+        
+        public static string ToIdPreimage<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, bool withoutId)
             where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
+            var content = StringEscaperJsonConverter.JavaScriptStringEncode(nostrEvent.Content, false);
             return
-                $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{nostrEvent.Content}\"]";
+                $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{content}\"]";
         }
 
         public static string ComputeEventId(this string eventJson)
@@ -27,7 +30,7 @@ namespace NNostr.Client
         public static string ComputeId<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent)
             where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
-            return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeEventId();
+            return nostrEvent.ToIdPreimage<TNostrEvent, TEventTag>(true).ComputeEventId();
         }
 
         public static string ComputeSignature(this NostrEvent nostrEvent, ECPrivKey priv) =>
@@ -36,7 +39,7 @@ namespace NNostr.Client
         public static string ComputeSignature<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, ECPrivKey priv)
             where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
-            return nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
+            return nostrEvent.ToIdPreimage<TNostrEvent, TEventTag>(true).ComputeBIP340Signature(priv);
         }
 
         public static async Task<NostrEvent> ComputeIdAndSignAsync(this NostrEvent nostrEvent, ECPrivKey priv,
@@ -141,7 +144,7 @@ namespace NNostr.Client
         public static bool Verify<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent)
             where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {
-            var hash = nostrEvent.ToJson<TNostrEvent, TEventTag>(true).ComputeSha256Hash();
+            var hash = nostrEvent.ToIdPreimage<TNostrEvent, TEventTag>(true).ComputeSha256Hash();
             if (hash.AsSpan().ToHex() != nostrEvent.Id)
             {
                 return false;

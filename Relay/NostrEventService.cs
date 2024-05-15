@@ -54,7 +54,7 @@ namespace Relay
             }
 
             return _options.CurrentValue.EventCost *
-                   Encoding.UTF8.GetByteCount(evt.ToJson<RelayNostrEvent, RelayNostrEventTag>(false));
+                   Encoding.UTF8.GetByteCount(evt.ToIdPreimage<RelayNostrEvent, RelayNostrEventTag>(false));
         }
 
         public async Task<(string eventId, bool success, string reason, List<NostrEventsMatched> eventsMatcheds)> AddEvent(RelayNostrEvent evt)

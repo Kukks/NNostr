@@ -45,7 +45,7 @@ namespace Relay
                 _stateManager.RemoveConnection(id);
             }
 
-            _logger.LogTrace($"Removed connection: {id}");
+            _logger.LogInformation($"Removed connection: {id}");
         }
 
         public Task ReceiveAsync(WebSocket socket, WebSocketReceiveResult result, string msg)
