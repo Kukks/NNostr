@@ -93,6 +93,13 @@ namespace NNostr.Client
         public static void SetTag(this NostrEvent nostrEvent, string identifier, params string[] data) =>
             nostrEvent.SetTag<NostrEvent, NostrEventTag>(identifier, data);
 
+        public static NostrEvent SetTag(this NostrEvent nostrEvent, string identifier, string data)
+        {
+            nostrEvent.SetTag(identifier, new[] {data});
+            return nostrEvent;
+            
+        }
+
         public static void SetTag<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, string identifier,
             params string[] data) where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag, new()
         {

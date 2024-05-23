@@ -23,6 +23,11 @@ public class NostrWalletCOnnectTests
     public async Task CanParseUri()
     {
         
+        var nwa = "nostr+walletauth://58c79c9e299fc2f8f153774c88a7be24b65c59d65ed1bca4525c58c9c656c793?relay=wss%3A%2F%2Frelay.mutinywallet.com%2F&secret=96f6569301468799&required_commands=pay_invoice&identity=71bfa9cbf84110de617e959021b08c69524fcaa1033ffd062abd0ae2657ba24c";
+        var nwaPayload = NIP67.ParseUri(new Uri(nwa));
+        
+        
+        
         var uri = new Uri("");
         var result = NIP47.ParseUri(uri);
 
