@@ -1,23 +1,24 @@
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
-using System.Security.Cryptography;
 using System.Threading.Channels;
-using LinqKit;
 using NBitcoin.Secp256k1;
 using NNostr.Client.JsonConverters;
-using SHA256 = System.Security.Cryptography.SHA256;
 
 namespace NNostr.Client
 {
     public static class NostrExtensions
     {
-        
         public static string ToIdPreimage<TNostrEvent, TEventTag>(this TNostrEvent nostrEvent, bool withoutId)
             where TNostrEvent : BaseNostrEvent<TEventTag> where TEventTag : NostrEventTag
         {
-            var content = StringEscaperJsonConverter.JavaScriptStringEncode(nostrEvent.Content, false);
+            var content = StringEscaperJsonConverter.JavaScriptStringEncode(nostrEvent.Content ?? string.Empty, false);
+            var tagContent = string.Join(',', nostrEvent.Tags.Select(tag =>
+            {
+                var data = tag.TagIdentifier is null ? tag.Data : tag.Data.Prepend(tag.TagIdentifier);
+                return $"[{string.Join(",", data.Select(d => $"\"{StringEscaperJsonConverter.JavaScriptStringEncode(d, false)}\""))}]";
+            }));
             return
-                $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds()},{nostrEvent.Kind},[{string.Join(',', nostrEvent.Tags.Select(tag => tag))}],\"{content}\"]";
+                $"[{(withoutId ? 0 : $"\"{nostrEvent.Id}\"")},\"{nostrEvent.PublicKey}\",{nostrEvent.CreatedAt?.ToUnixTimeSeconds() ?? 0},{nostrEvent.Kind},[{tagContent}],\"{content}\"]";
         }
 
         public static string ComputeEventId(this string eventJson)

@@ -21,11 +21,11 @@ public abstract class BaseNostrEventTagJsonConverter<TNostrEventTag> : JsonConve
         {
             if (i == 0)
             {
-                result.TagIdentifier = StringEscaperJsonConverter.JavaScriptStringEncode(reader.GetString(), false);
+                result.TagIdentifier = reader.GetString();
             }
             else
             {
-                result.Data.Add(StringEscaperJsonConverter.JavaScriptStringEncode(reader.GetString(), false));
+                result.Data.Add(reader.GetString());
             }
 
             reader.Read();
