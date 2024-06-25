@@ -405,6 +405,9 @@ public interface INIP47Request
     public class PayInvoiceResponse
     {
         [JsonPropertyName("preimage")] public string Preimage { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        [JsonPropertyName("fees_paid")]
+        public long? FeesPaid { get; set; }
     }
 
     public class MakeInvoiceRequest : INIP47Request
@@ -478,6 +481,8 @@ public interface INIP47Request
         [JsonPropertyName("block_height")] public long BlockHeight { get; set; }
         [JsonPropertyName("block_hash")] public string BlockHash { get; set; }
         [JsonPropertyName("methods")] public string[] Methods { get; set; }
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] 
+        [JsonPropertyName("notifications")] public string[]? Notifications { get; set; }
     }
 
     public class GetBalanceResponse
