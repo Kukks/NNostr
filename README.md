@@ -75,7 +75,7 @@ await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None)
 * run the following ssh commands
 ```bash
 cd btcpayserver-docker
-BTCPAYGEN_ADDITIONAL_FRAGMENTS="$BTCPAYGEN_ADDITIONAL_FRAGMENTS;opt-add-nostr"
+BTCPAYGEN_ADDITIONAL_FRAGMENTS="$BTCPAYGEN_ADDITIONAL_FRAGMENTS;opt-add-nostr-relay"
 . ./btcpay-setup.sh -i
 ```
 * your relay will be available at your btcpay url `/nostr`
