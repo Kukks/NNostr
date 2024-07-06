@@ -11,11 +11,11 @@ A Nostr Relay and Client written in C#
 
 1.) Initiate a new client
 ```csharp
-var client = new NostrClient("wss://your-relay-url.com");
+var client = new NostrClient(new Uri("wss://your-relay-url.com"));
 ```
 2.) Connect to the relay
 ```csharp
-_ = client.ConnectAsync();
+_ = client.Connect();
 ```
 3.) Wait for the connection to be established
 ```csharp
@@ -75,7 +75,7 @@ await client.SendEventsAndWaitUntilReceived(new[] {evt}, CancellationToken.None)
 * run the following ssh commands
 ```bash
 cd btcpayserver-docker
-BTCPAYGEN_ADDITIONAL_FRAGMENTS="$BTCPAYGEN_ADDITIONAL_FRAGMENTS;opt-add-nostr"
+BTCPAYGEN_ADDITIONAL_FRAGMENTS="$BTCPAYGEN_ADDITIONAL_FRAGMENTS;opt-add-nostr-relay"
 . ./btcpay-setup.sh -i
 ```
 * your relay will be available at your btcpay url `/nostr`
