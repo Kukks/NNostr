@@ -8,20 +8,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <PackageReference Include="BTCPayServer.Client" Version="1.7.4" />
-      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="4.4.3" />
+      <PackageReference Include="BTCPayServer.Client" Version="2.0.0" />
+      <PackageReference Include="EFCoreSecondLevelCacheInterceptor" Version="4.8.4" />
       <PackageReference Include="FlexLabs.EntityFrameworkCore.Upsert" Version="8.0.0" />
-      <PackageReference Include="LinqKit" Version="1.2.5" />
+      <PackageReference Include="LinqKit" Version="1.3.0" />
       <PackageReference Include="LinqKit.Microsoft.EntityFrameworkCore" Version="8.1.5" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.4" />
-      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.4">
+      <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
+      <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version=" 8.0.10">
         <PrivateAssets>all</PrivateAssets>
         <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       </PackageReference>
-      <PackageReference Include="NBitcoin" Version="7.0.36" />
-      <PackageReference Include="NBitcoin.Secp256k1" Version="3.1.4" />
-      <PackageReference Include="Npgsql" Version="8.0.3" />
-      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+      <PackageReference Include="NBitcoin" Version="7.0.42" />
+      <PackageReference Include="Npgsql" Version="8.0.5" />
+      <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
     </ItemGroup>
 
     <ItemGroup>

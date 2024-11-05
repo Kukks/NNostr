@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CSChaCha20;
 using NBitcoin.Secp256k1;
 
@@ -140,5 +141,17 @@ public class NIP44
         byte[] paddedPlaintext = chaCha.DecryptBytes(ciphertext);
 
         return Unpad(paddedPlaintext);
+    }
+    
+    public static string Nip44Encrypt<T>(T data, ECPrivKey privateKey, ECXOnlyPubKey publicKey)
+    {
+        var json = JsonSerializer.Serialize(data);
+        return NIP44.Encrypt(privateKey, publicKey, json);
+    }
+
+    public static T Nip44Decrypt<T>(string encryptedContent, ECPrivKey privateKey, ECXOnlyPubKey publicKey)
+    {
+        var decryptedJson = NIP44.Decrypt(privateKey, publicKey,encryptedContent);
+        return JsonSerializer.Deserialize<T>(decryptedJson);
     }
 }
