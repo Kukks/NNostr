@@ -122,7 +122,7 @@ public static class NIP04
         nostrEvent.Content = $"{Convert.ToBase64String(cipherTextBytes)}?iv={Convert.ToBase64String(ivBytes)}";
     }
     
-    private static bool TryGetSharedPubkey(this ECXOnlyPubKey ecxOnlyPubKey, ECPrivKey key, 
+    internal static bool TryGetSharedPubkey(this ECXOnlyPubKey ecxOnlyPubKey, ECPrivKey key, 
         [NotNullWhen(true)] out ECPubKey? sharedPublicKey)
     {
         // 32 + 1 byte for the compression (0x02) prefix.
