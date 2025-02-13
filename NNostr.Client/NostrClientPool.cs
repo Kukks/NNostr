@@ -2,28 +2,36 @@ using System.Collections.Concurrent;
 
 namespace NNostr.Client;
 
-
 public class NostrClientPool : IDisposable
 {
     private readonly ConcurrentDictionary<string, NostrClientWrapper> _clientPool = new();
 
-    private readonly Timer _cleanupTimer;
+    private Timer? _cleanupTimer;
+    private readonly TimeSpan _unusedClientTimeout;
 
     public NostrClientPool(TimeSpan? unusedClientTimeout = null)
     {
-        unusedClientTimeout ??= TimeSpan.FromMinutes(5);
-        _cleanupTimer = new Timer(CleanupExpiredClients, null, unusedClientTimeout.Value, unusedClientTimeout.Value);
+        _unusedClientTimeout = unusedClientTimeout ?? TimeSpan.FromMinutes(5);
+        InitBackgroundTask();
+    }
+
+    protected virtual void InitBackgroundTask()
+    {
+        _cleanupTimer?.Dispose();
+        _cleanupTimer = new Timer(CleanupExpiredClients, null, _unusedClientTimeout, _unusedClientTimeout);
     }
 
     public (INostrClient, IDisposable) GetClient(Uri[] relays)
     {
-        if(relays.Length == 0)
+        if (relays.Length == 0)
             throw new ArgumentException("At least one relay is required", nameof(relays));
-       
+
         var connString = GetConnString(relays);
 
         var clientWrapper = _clientPool.GetOrAdd(connString,
-            k => new NostrClientWrapper(relays.Length > 1? new CompositeNostrClient(relays) : new NostrClient(relays[0])));
+            k => new NostrClientWrapper(relays.Length > 1
+                ? new CompositeNostrClient(relays)
+                : new NostrClient(relays[0])));
 
         clientWrapper.IncrementUsage();
 
@@ -33,12 +41,19 @@ public class NostrClientPool : IDisposable
     public async Task<(INostrClient, IDisposable)> GetClientAndConnect(Uri[] relays, CancellationToken token)
     {
         var result = GetClient(relays);
-
-        await result.Item1.ConnectAndWaitUntilConnected(token, CancellationToken.None);
-
-        return result;
+        try
+        {
+            await result.Item1.ConnectAndWaitUntilConnected(token, CancellationToken.None);
+            return result;
+        }
+        catch (Exception e)
+        {
+            result.Item2.Dispose();
+            KillClient(relays);
+            throw;
+        }
     }
-    
+
     private string GetConnString(Uri[] relays)
     {
         return string.Join(';', relays.Select(r => r.ToString()));
@@ -67,24 +82,24 @@ public class NostrClientPool : IDisposable
         }
     }
 
-    private class UsageDisposable : IDisposable
+    internal class UsageDisposable : IDisposable
     {
-        private readonly NostrClientWrapper _clientWrapper;
+        internal readonly NostrClientWrapper ClientWrapper;
 
         public UsageDisposable(NostrClientWrapper clientWrapper)
         {
-            _clientWrapper = clientWrapper;
+            ClientWrapper = clientWrapper;
         }
 
         public void Dispose()
         {
-            _clientWrapper.DecrementUsage();
+            ClientWrapper.DecrementUsage();
         }
     }
 
     public void Dispose()
     {
-        _cleanupTimer.Dispose();
+        _cleanupTimer?.Dispose();
         foreach (var client in _clientPool.Values)
         {
             client.Dispose();

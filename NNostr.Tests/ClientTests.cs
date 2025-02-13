@@ -19,6 +19,33 @@ public class NostrWalletCOnnectTests
 
     }
 
+
+    [Fact]
+    public async Task RsspectCancelltaion()
+    {
+        var broken =
+            "nostr+walletconnect://142cc22d6c00258709ae2b5312c54d40420b0aa495839ce5f13ae0025f1263db?relay=wss://relay.getalby.com/v1&secret=e06cffe97a30701d309d8c041ef67e2b37f1524c128ce594501f21cd723350d8";
+        
+        var result = NIP47.ParseUri(new Uri(broken));
+
+        var pool = new NostrClientPool();
+        
+        var cts = new CancellationTokenSource();
+        var connectionResult = pool.GetClientAndConnect(result.relays, cts.Token);
+   
+       var res =  await connectionResult;
+       Assert.Equal(1, Assert.IsType<NostrClientPool.UsageDisposable>(res.Item2).ClientWrapper.UsageCount);
+       
+       var connectionResult2 = await pool.GetClientAndConnect(result.relays, cts.Token);
+
+       Assert.Equal(2, Assert.IsType<NostrClientPool.UsageDisposable>(connectionResult2.Item2).ClientWrapper.UsageCount);
+       Assert.Equal(res.Item1, connectionResult2.Item1);
+       
+       
+       
+    }
+    
+
      // [Fact]
     public async Task CanParseUri()
     {

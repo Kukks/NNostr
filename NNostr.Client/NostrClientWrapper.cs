@@ -3,7 +3,7 @@
 public class NostrClientWrapper : IDisposable
 {
     public INostrClient Client { get; private set; }
-    private int _usageCount = 0;
+    internal int UsageCount = 0;
     private bool _isDisposed = false;
     private DateTimeOffset _lastUsed;
 
@@ -16,13 +16,13 @@ public class NostrClientWrapper : IDisposable
     public void IncrementUsage()
     {
         _lastUsed = DateTimeOffset.UtcNow;
-        Interlocked.Increment(ref _usageCount);
+        Interlocked.Increment(ref UsageCount);
     }
 
     public void DecrementUsage()
     {
         _lastUsed = DateTimeOffset.UtcNow;
-        if (Interlocked.Decrement(ref _usageCount) == 0 && IsExpired())
+        if (Interlocked.Decrement(ref UsageCount) == 0 && IsExpired())
         {
             Dispose();
         }
