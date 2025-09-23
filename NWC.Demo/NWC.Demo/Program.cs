@@ -9,301 +9,17 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("🚀 NWC (Nostr Wallet Connect) Demo");
-        Console.WriteLine("===================================\n");
+        Console.WriteLine("⚡ NWC (Nostr Wallet Connect)");
+        Console.WriteLine("=============================\n");
+        Console.WriteLine("Connect to your Lightning wallet via NIP-47");
+        Console.WriteLine("Supports all standard wallet operations with real Lightning integration\n");
 
-        Console.WriteLine("Choose demo mode:");
-        Console.WriteLine("1. Mock Wallet Server Demo");
-        Console.WriteLine("2. Client Demo (connect to wallet)");
-        Console.WriteLine("3. Full Round-trip Demo");
-        Console.WriteLine("4. Real NWC Demo (with real wallet)");
-        Console.WriteLine("\nEnter choice (1-4): ");
-
-        var choice = Console.ReadLine();
-
-        switch (choice)
-        {
-            case "1":
-                await RunWalletServerDemo();
-                break;
-            case "2":
-                await RunClientDemo();
-                break;
-            case "3":
-                await RunFullDemo();
-                break;
-            case "4":
-                await RunRealNWCDemo();
-                break;
-            default:
-                Console.WriteLine("Invalid choice. Running real NWC demo...");
-                await RunRealNWCDemo();
-                break;
-        }
-    }
-
-    static async Task RunWalletServerDemo()
-    {
-        Console.WriteLine("\n🏦 Starting Mock Wallet Server Demo...\n");
-
-        // Create relay connection
-        var relay = new Uri("wss://relay.damus.io");
-        var client = new NostrClient(relay);
-
-        // Generate wallet keys
-        var walletKey = ECPrivKey.Create(new byte[32].Select(x => (byte)Random.Shared.Next(256)).ToArray());
-        var walletPubKey = walletKey.CreateXOnlyPubKey();
-
-        Console.WriteLine($"💰 Wallet PubKey: {walletPubKey.ToHex()}");
-        Console.WriteLine($"🔗 Relay: {relay}");
-
-        // Define supported commands
-        var supportedCommands = new[]
-        {
-            "get_info",
-            "get_balance",
-            "make_invoice",
-            "pay_invoice",
-            "list_transactions"
-        };
-
-        // Create wallet server
-        var walletServer = new NIP47.NostrWalletConnectServer(
-            client,
-            walletKey,
-            supportedCommands,
-            HandleWalletRequest
-        );
-
-        try
-        {
-            await client.Connect();
-            await client.WaitUntilConnected();
-            Console.WriteLine("✅ Connected to relay");
-
-            await walletServer.StartAsync(CancellationToken.None);
-            Console.WriteLine("🟢 Wallet server started and listening for requests...");
-            Console.WriteLine("\n📱 Connection URI:");
-
-            // Generate connection URI for clients
-            var connectionSecret = ECPrivKey.Create(new byte[32].Select(x => (byte)Random.Shared.Next(256)).ToArray());
-            var connectionUri = NIP47.CreateUri(walletPubKey, connectionSecret, relay);
-            Console.WriteLine($"📋 {connectionUri}");
-
-            Console.WriteLine("\nPress any key to stop the wallet server...");
-            Console.ReadKey();
-        }
-        finally
-        {
-            await walletServer.StopAsync(CancellationToken.None);
-            await walletServer.DisposeAsync();
-            await client.Disconnect();
-            Console.WriteLine("🔴 Wallet server stopped");
-        }
-    }
-
-    static async Task RunClientDemo()
-    {
-        Console.WriteLine("\n📱 Starting Client Demo...\n");
-
-        Console.WriteLine("Enter NWC connection string (nostr+walletconnect://...):");
-        var connectionString = Console.ReadLine();
-
-        if (string.IsNullOrEmpty(connectionString) || !connectionString.StartsWith("nostr+walletconnect://"))
-        {
-            Console.WriteLine("❌ Invalid connection string. Using demo connection...");
-            // Use a demo connection string
-            var demoWalletKey = ECPrivKey.Create(new byte[32].Select(x => (byte)Random.Shared.Next(256)).ToArray());
-            var demoSecret = ECPrivKey.Create(new byte[32].Select(x => (byte)Random.Shared.Next(256)).ToArray());
-            var demoRelay = new Uri("wss://relay.damus.io");
-            connectionString = NIP47.CreateUri(demoWalletKey.CreateXOnlyPubKey(), demoSecret, demoRelay).ToString();
-        }
-
-        var connectionUri = new Uri(connectionString);
-        var (walletPubKey, clientSecret, relays, lud16) = NIP47.ParseUri(connectionUri);
-
-        Console.WriteLine($"💰 Wallet: {walletPubKey.ToHex()}");
-        Console.WriteLine($"🔗 Relay: {relays[0]}");
-
-        var client = new NostrClient(relays[0]);
-
-        try
-        {
-            await client.Connect();
-            await client.WaitUntilConnected();
-            Console.WriteLine("✅ Connected to relay");
-
-            // Test get_info
-            Console.WriteLine("\n🔍 Testing get_info...");
-            try
-            {
-                var infoResponse = await client.SendNIP47Request<NIP47.GetInfoResponse>(
-                    walletPubKey,
-                    clientSecret,
-                    new NIP47.GetInfoRequest(),
-                    CancellationToken.None
-                );
-
-                Console.WriteLine($"📊 Wallet Info:");
-                Console.WriteLine($"   Alias: {infoResponse.Alias}");
-                Console.WriteLine($"   Network: {infoResponse.Network}");
-                Console.WriteLine($"   Methods: {string.Join(", ", infoResponse.Methods)}");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ get_info failed: {ex.Message}");
-            }
-
-            // Test get_balance
-            Console.WriteLine("\n💰 Testing get_balance...");
-            try
-            {
-                var balanceResponse = await client.SendNIP47Request<NIP47.GetBalanceResponse>(
-                    walletPubKey,
-                    clientSecret,
-                    new NIP47.NIP47Request("get_balance"),
-                    CancellationToken.None
-                );
-
-                Console.WriteLine($"💸 Balance: {balanceResponse.BalanceMsats} msats");
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"❌ get_balance failed: {ex.Message}");
-            }
-
-        }
-        finally
-        {
-            await client.Disconnect();
-            Console.WriteLine("🔴 Client disconnected");
-        }
-    }
-
-    static async Task RunFullDemo()
-    {
-        Console.WriteLine("\n🔄 Starting Full Round-trip Demo...\n");
-        Console.WriteLine("This demo runs both wallet server and client in the same process.\n");
-
-        // We'll run the wallet server and client in parallel
-        var walletTask = Task.Run(async () =>
-        {
-            await Task.Delay(1000); // Give some time for setup
-            await RunMockWalletInBackground();
-        });
-
-        var clientTask = Task.Run(async () =>
-        {
-            await Task.Delay(3000); // Wait for wallet to start
-            await RunMockClientInBackground();
-        });
-
-        await Task.WhenAll(walletTask, clientTask);
-        Console.WriteLine("\n✅ Full demo completed!");
-    }
-
-    static async Task RunMockWalletInBackground()
-    {
-        // Similar to RunWalletServerDemo but simplified for background operation
-        var relay = new Uri("wss://relay.damus.io");
-        var client = new NostrClient(relay);
-        var walletKey = ECPrivKey.Create(new byte[32].Select(x => (byte)Random.Shared.Next(256)).ToArray());
-
-        var walletServer = new NIP47.NostrWalletConnectServer(
-            client,
-            walletKey,
-            new[] { "get_info", "get_balance" },
-            HandleWalletRequest
-        );
-
-        try
-        {
-            await client.Connect();
-            await client.WaitUntilConnected();
-            await walletServer.StartAsync(CancellationToken.None);
-
-            // Keep running for demo
-            await Task.Delay(30000); // 30 seconds
-        }
-        finally
-        {
-            await walletServer.StopAsync(CancellationToken.None);
-            await walletServer.DisposeAsync();
-            await client.Disconnect();
-        }
-    }
-
-    static async Task RunMockClientInBackground()
-    {
-        // Mock client that connects to the wallet
-        Console.WriteLine("🤖 Mock client connecting...");
-        await Task.Delay(2000);
-        Console.WriteLine("✅ Mock client operations completed");
-    }
-
-    // Mock wallet request handler
-    static async Task<NIP47.Nip47Response> HandleWalletRequest(
-        ECXOnlyPubKey clientPubKey,
-        NIP47.Nip47Request request,
-        CancellationToken cancellationToken)
-    {
-        Console.WriteLine($"📨 Received request: {request.Method} from {clientPubKey.ToHex()[..8]}...");
-
-        // Mock responses based on method
-        return request.Method switch
-        {
-            "get_info" => CreateSuccessResponse(new NIP47.GetInfoResponse
-            {
-                Alias = "Mock NWC Wallet",
-                Color = "#FF6B6B",
-                Pubkey = "mock_wallet_pubkey",
-                Network = "regtest",
-                BlockHeight = 850000,
-                BlockHash = "mock_block_hash",
-                Methods = new[] { "get_info", "get_balance", "make_invoice", "pay_invoice" }
-            }),
-
-            "get_balance" => CreateSuccessResponse(new NIP47.GetBalanceResponse
-            {
-                BalanceMsats = 100000000 // 100k sats
-            }),
-
-            "make_invoice" => CreateSuccessResponse(new
-            {
-                invoice = "lnbc1000n1...", // Mock invoice
-                payment_hash = "mock_payment_hash"
-            }),
-
-            _ => new NIP47.Nip47Response
-            {
-                ResultType = NIP47.ErrorCodes.NotImplemented,
-                Error = new NIP47.Nip47Response.Nip47ResponseError
-                {
-                    Code = NIP47.ErrorCodes.NotImplemented,
-                    Message = $"Method {request.Method} not implemented in mock wallet"
-                }
-            }
-        };
-    }
-
-    static NIP47.Nip47Response CreateSuccessResponse(object result)
-    {
-        var resultJson = JsonSerializer.Deserialize<System.Text.Json.Nodes.JsonObject>(
-            JsonSerializer.Serialize(result)
-        );
-
-        return new NIP47.Nip47Response
-        {
-            ResultType = "success",
-            Result = resultJson
-        };
+        await RunRealNWCDemo();
     }
 
     static async Task RunRealNWCDemo()
     {
-        Console.WriteLine("\n⚡ Real NWC Demo - Connect to Real Lightning Wallet\n");
-        Console.WriteLine("This demo connects to a real Lightning wallet using NWC.");
-        Console.WriteLine("You'll need a real NWC connection string from a compatible wallet.\n");
+        Console.WriteLine("Please provide your NWC connection string from your Lightning wallet.");
 
         Console.WriteLine("📋 Enter your NWC connection string:");
         Console.WriteLine("(Format: nostr+walletconnect://pubkey?relay=...&secret=...)");
@@ -439,14 +155,14 @@ class Program
     {
         while (true)
         {
-            Console.WriteLine("\n🎛️  Interactive Wallet Operations");
-            Console.WriteLine("=================================");
+            Console.WriteLine("\n⚡ Lightning Wallet Operations");
+            Console.WriteLine("=============================");
             Console.WriteLine("1. 📊 Get wallet info");
             Console.WriteLine("2. 💰 Check balance");
             Console.WriteLine("3. 🧾 Create invoice");
             Console.WriteLine("4. 📜 List transactions");
             Console.WriteLine("5. 🔍 Lookup invoice");
-            Console.WriteLine("6. ⚡ Pay invoice (ENHANCED)");
+            Console.WriteLine("6. ⚡ Pay invoice");
             Console.WriteLine("7. 🚪 Exit");
             Console.Write("\nEnter choice (1-7): ");
 
@@ -675,11 +391,10 @@ class Program
             Console.WriteLine($"   Preimage: {response.Preimage}");
     }
 
-    // ENHANCED PayInvoice function with Lightning validation and better error handling
     static async Task PayInvoiceEnhanced(INostrClient client, ECXOnlyPubKey walletPubKey, ECPrivKey clientSecret)
     {
-        Console.WriteLine("\n⚡ Enhanced Pay Lightning Invoice");
-        Console.WriteLine("=====================================");
+        Console.WriteLine("\n⚡ Pay Lightning Invoice");
+        Console.WriteLine("=======================");
         Console.WriteLine("⚠️  WARNING: This will send REAL money!");
         Console.WriteLine("⚠️  Double-check the invoice before proceeding!\n");
 
