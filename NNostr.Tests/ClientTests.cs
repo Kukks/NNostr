@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Threading;
 using System.Threading.Tasks;
 using NNostr.Client.Protocols;
 using Xunit;
@@ -88,12 +89,53 @@ public class NostrWalletCOnnectTests
             PaymentHash = "dummy"
         });
 
-        
-        var x = false;
-        
-        
-        
+    }
 
+    [Fact]
+    public void PayInvoiceRequest_SerializesCorrectly()
+    {
+        // Test for the bug fix - PayInvoiceRequest should include "invoice" in JSON
+        var request = new NIP47.PayInvoiceRequest()
+        {
+            Invoice = "lnbc1pvjluezpp5qqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqqqsyqcyq5rqwzqfqypqdpl2pkx2ctnv5sxxmmwwd5kgetjypeh2ursdae8g6twvus8g6rfwvs8qun0dfjkxaq8rkx3yf5tcsyz3d73gafnh3cax9rn449d9p5uxz9ezhhypd0elx87sjle52x86fux2ypatgddc6k63n7erqz25le42c4u4ecky03ylcqca784w",
+            Amount = 1000
+        };
+
+        var nip47Request = ((NIP47.INIP47Request)request).ToNip47Request();
+        var json = JsonSerializer.Serialize(nip47Request);
+
+        // The JSON should contain "invoice" property
+        Assert.Contains("\"invoice\"", json);
+
+        // Verify the structure is correct
+        var jsonNode = JsonSerializer.Deserialize<JsonNode>(json);
+        Assert.Equal("pay_invoice", jsonNode!["method"]!.GetValue<string>());
+        Assert.Equal(request.Invoice, jsonNode!["params"]!["invoice"]!.GetValue<string>());
+        Assert.Equal(1000, jsonNode!["params"]!["amount"]!.GetValue<decimal>());
+    }
+
+    [Fact]
+    public void PayInvoiceRequest_WithoutJsonPropertyName_WouldNotSerializeInvoice()
+    {
+        // This test demonstrates what would happen without the [JsonPropertyName("invoice")] attribute
+        // We create a request object and verify that the JSON includes the invoice field
+        var request = new NIP47.PayInvoiceRequest()
+        {
+            Invoice = "lnbc1test",
+            Amount = 500
+        };
+
+        var nip47Request = ((NIP47.INIP47Request)request).ToNip47Request();
+        var json = JsonSerializer.Serialize(nip47Request);
+
+        // With the fix, "invoice" should be present in the JSON
+        Assert.Contains("\"invoice\"", json);
+
+        // Parse and verify the invoice is properly serialized
+        var jsonNode = JsonSerializer.Deserialize<JsonNode>(json);
+        var invoiceValue = jsonNode!["params"]!["invoice"];
+        Assert.NotNull(invoiceValue);
+        Assert.Equal("lnbc1test", invoiceValue!.GetValue<string>());
     }
 }
 

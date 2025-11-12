@@ -395,6 +395,8 @@ public interface INIP47Request
     public class PayInvoiceRequest : INIP47Request
     {
         public string Method => "pay_invoice";
+
+        [JsonPropertyName("invoice")]
         public string Invoice { get; set; }
 
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
