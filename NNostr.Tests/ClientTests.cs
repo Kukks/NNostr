@@ -137,6 +137,31 @@ public class NostrWalletCOnnectTests
         Assert.NotNull(invoiceValue);
         Assert.Equal("lnbc1test", invoiceValue!.GetValue<string>());
     }
+
+    [Fact]
+    public void ParseUri_SingleRelay_DoesNotDuplicateRelay()
+    {
+        var uri = new Uri(
+            "nostr+walletconnect://142cc22d6c00258709ae2b5312c54d40420b0aa495839ce5f13ae0025f1263db?relay=wss%3A%2F%2Frelay.getalby.com%2Fv1&secret=e06cffe97a30701d309d8c041ef67e2b37f1524c128ce594501f21cd723350d8");
+
+        var result = NIP47.ParseUri(uri);
+
+        Assert.Single(result.relays);
+        Assert.Equal("wss://relay.getalby.com/v1", result.relays[0].AbsoluteUri.TrimEnd('/'));
+    }
+
+    [Fact]
+    public void ParseUri_MultipleRelays_ReturnsAllRelaysInOrder()
+    {
+        var uri = new Uri(
+            "nostr+walletconnect://142cc22d6c00258709ae2b5312c54d40420b0aa495839ce5f13ae0025f1263db?relay=wss%3A%2F%2Frelay.one.example%2F&relay=wss%3A%2F%2Frelay.two.example%2F&secret=e06cffe97a30701d309d8c041ef67e2b37f1524c128ce594501f21cd723350d8");
+
+        var result = NIP47.ParseUri(uri);
+
+        Assert.Equal(2, result.relays.Length);
+        Assert.Equal("wss://relay.one.example/", result.relays[0].AbsoluteUri);
+        Assert.Equal("wss://relay.two.example/", result.relays[1].AbsoluteUri);
+    }
 }
 
 public class ClientTests
