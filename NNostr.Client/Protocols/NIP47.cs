@@ -244,8 +244,12 @@ public static class NIP47
     {
         var query = HttpUtility.ParseQueryString(uri.Query);
         var lud16 = query["lud16"];
-        var relays = query.GetValues("relay") ?? Array.Empty<string>();
-        var relaysUris = relays.Prepend(query["relay"]).Select(s => new Uri(s)).ToArray();
+        var relays = query.GetValues("relay");
+        if (relays is null && query["relay"] is not null)
+        {
+            relays = new[] { query["relay"] };
+        }
+        var relaysUris = (relays ?? Array.Empty<string>()).Select(s => new Uri(s)).ToArray();
         return (NostrExtensions.ParsePubKey(uri.Host), NostrExtensions.ParseKey(query["secret"]), relaysUris, lud16);
     }
 
