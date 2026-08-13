@@ -136,6 +136,13 @@ public static class NIP47
     public static async Task<(string[] Commands, string[] Notifications)?> FetchNIP47AvailableCommands(this INostrClient nostrClient,
         ECXOnlyPubKey serverKey, CancellationToken cancellationToken = default)
     {
+        var info = await nostrClient.FetchNIP47InfoEvent(serverKey, cancellationToken);
+        return info is null ? null : (info.Value.Commands, info.Value.Notifications);
+    }
+
+    public static async Task<(string[] Commands, string[] Notifications, string[] EncryptionSchemes)?> FetchNIP47InfoEvent(this INostrClient nostrClient,
+        ECXOnlyPubKey serverKey, CancellationToken cancellationToken = default)
+    {
         var filter = new NostrSubscriptionFilter()
         {
             Authors = new[] {serverKey.ToHex()},
@@ -149,40 +156,61 @@ public static class NIP47
             return null;
         }
         var commands =  result.Content!.Split(" ");
-        var notifications = result?.GetTaggedData("notifications").SelectMany(s => s.Split(" ")).Distinct().ToArray();
-        
-        return (commands, notifications);
+        var notifications = result.GetTaggedData("notifications").SelectMany(s => s.Split(" ")).Distinct().ToArray();
+        // NIP-47: absence of the encryption tag implies the wallet service only supports nip04
+        var encryptionSchemes = result.GetTaggedData(EncryptionTag).SelectMany(s => s.Split(" ")).Distinct().ToArray();
+
+        return (commands, notifications, encryptionSchemes);
     }
 
     public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
-        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default)
+        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default,
+        EncryptionScheme encryptionScheme = EncryptionScheme.Nip04)
     {
-        return await nostrClient.SendNIP47Request(serverKey, secretKey, request.ToNip47Request(), cancellationToken);
+        return await nostrClient.SendNIP47Request(serverKey, secretKey, request.ToNip47Request(), cancellationToken, encryptionScheme);
     }
-    
+
     public static async Task<T> SendNIP47Request<T>(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
-        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default) where T : class
+        ECPrivKey secretKey, INIP47Request request, CancellationToken cancellationToken = default,
+        EncryptionScheme encryptionScheme = EncryptionScheme.Nip04) where T : class
     {
-        var res =  await nostrClient.SendNIP47Request(serverKey, secretKey, request, cancellationToken);
+        var res =  await nostrClient.SendNIP47Request(serverKey, secretKey, request, cancellationToken, encryptionScheme);
         if (res.Error is not null)
             throw new Exception($"{res.Error.Code}:{res.Error.Message}");
         return res.Deserialize<T>() ?? throw new Exception("Invalid response");
     }
-    
+
     public static async Task<Nip47Response> SendNIP47Request(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
-        ECPrivKey secretKey, Nip47Request request, CancellationToken cancellationToken = default)
+        ECPrivKey secretKey, Nip47Request request, CancellationToken cancellationToken = default,
+        EncryptionScheme encryptionScheme = EncryptionScheme.Nip04)
     {
         var evt = CreateRequestEvent(request, serverKey);
-        await evt.EncryptNip04EventAsync(secretKey, null, true);
+        if (encryptionScheme == EncryptionScheme.Nip44V2)
+        {
+            // NIP-47: requests declare the encryption scheme they use via the encryption tag,
+            // absence of the tag means nip04
+            evt.SetTag(EncryptionTag, EncryptionSchemeNip44V2);
+            evt.Content = NIP44.Encrypt(secretKey, serverKey, evt.Content!);
+        }
+        else
+        {
+            await evt.EncryptNip04EventAsync(secretKey, null, true);
+        }
         evt = await evt.ComputeIdAndSignAsync(secretKey, false);
         var responseEvt = await nostrClient.SendEventAndWaitForReply(evt, cancellationToken);
-        var decryptedContent = await responseEvt.DecryptNip04EventAsync(secretKey, null, true);
+        var decryptedContent = encryptionScheme == EncryptionScheme.Nip44V2
+            ? NIP44.Decrypt(secretKey, serverKey, responseEvt.Content!)
+            : await responseEvt.DecryptNip04EventAsync(secretKey, null, true);
         return JsonSerializer.Deserialize<Nip47Response>(decryptedContent);
     }
 
     public static async IAsyncEnumerable<Nip47Notification> SubscribeNip47Notifications(this INostrClient nostrClient, ECXOnlyPubKey serverKey,
-        ECPrivKey secretKey,[EnumeratorCancellation] CancellationToken cancellationToken )
+        ECPrivKey secretKey,[EnumeratorCancellation] CancellationToken cancellationToken,
+        EncryptionScheme encryptionScheme = EncryptionScheme.Nip04)
     {
+        var notificationKind = encryptionScheme == EncryptionScheme.Nip44V2
+            ? Nip44NotificationEventKind
+            : NotificationEventKind;
         await foreach (var nostrEvent in nostrClient.SubscribeForEvents(new NostrSubscriptionFilter[]
                        {
                            new()
@@ -192,14 +220,16 @@ public static class NIP47
                            }
                        }, false, cancellationToken))
         {
-                if (nostrEvent.Kind != NotificationEventKind)
+                if (nostrEvent.Kind != notificationKind)
                     continue;
-                
-                var decryptedContent = await nostrEvent.DecryptNip04EventAsync(secretKey, null, true);
+
+                var decryptedContent = encryptionScheme == EncryptionScheme.Nip44V2
+                    ? NIP44.Decrypt(secretKey, serverKey, nostrEvent.Content!)
+                    : await nostrEvent.DecryptNip04EventAsync(secretKey, null, true);
                 var notification =  JsonSerializer.Deserialize<Nip47Notification>(decryptedContent);
                 if (notification is not null)
                     yield return notification;
-            
+
         }
     }
 
@@ -303,6 +333,17 @@ public static class NIP47
     public const int RequestEventKind = 23194;
     public const int ResponseEventKind = 23195;
     public const int NotificationEventKind = 23196;
+    public const int Nip44NotificationEventKind = 23197;
+
+    public const string EncryptionTag = "encryption";
+    public const string EncryptionSchemeNip44V2 = "nip44_v2";
+    public const string EncryptionSchemeNip04 = "nip04";
+
+    public enum EncryptionScheme
+    {
+        Nip04,
+        Nip44V2
+    }
 
     public class Nip47Request
     {

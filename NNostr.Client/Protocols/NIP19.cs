@@ -210,7 +210,7 @@ public static class NIP19
             {
                 (NostrAddressNoteParser.IdentifierKey, Convert.FromHexString(Identifier)),
                 (NostrAddressNoteParser.AuthorKey, Convert.FromHexString(Author)),
-                (NostrAddressNoteParser.KindKey, BitConverter.GetBytes(Kind).Reverse().ToArray()),
+                (NostrAddressNoteParser.KindKey, Enumerable.Reverse(BitConverter.GetBytes(Kind)).ToArray()),
                 
             };
             tlvData.AddRange(Relays.Select(relay => (NostrAddressNoteParser.RelayKey, Encoding.ASCII.GetBytes(relay))));
