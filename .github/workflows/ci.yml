@@ -4,13 +4,21 @@ on: push
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Trusted Publishing needs id-token. The other two replace the long-lived
+    # secrets this workflow used to depend on (NUGET_KEY, GH_TOKEN).
+    permissions:
+      id-token: write # mint the OIDC token nuget.org exchanges for a short-lived key
+      packages: write # push to GitHub Packages with the built-in GITHUB_TOKEN
+      contents: write # push the NNostr.Client/v* tag
+
     steps:
       # Checkout the code
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # Install .NET Core SDK
       - name: Setup .NET Core
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
 
@@ -20,26 +28,60 @@ jobs:
 #      - name: Test
 #        run: dotnet test
 
+      # The csproj sets GeneratePackageOnBuild, so the build emits the .nupkg itself.
+      # A bare `dotnet pack` would skip the build and fail with NU5026.
+      - name: Build
+        run: dotnet build NNostr.Client/NNostr.Client.csproj -c Release -p:PackageOutputPath=${{ github.workspace }}/artifacts
+
+      - name: Read package version
+        id: version
+        run: echo "version=$(dotnet msbuild NNostr.Client/NNostr.Client.csproj -getProperty:PackageVersion | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
+      # Trade the GitHub OIDC token for a NuGet API key that expires after an hour.
+      # nuget.org matches the token against the Trusted Publishing policy by repo
+      # owner, repo and the name of THIS file (ci.yml) - renaming it breaks publishing.
+      - name: NuGet login
+        if: ${{ github.ref == 'refs/heads/master' }}
+        id: nuget-login
+        uses: NuGet/login@v1
+        with:
+          user: Kukks
+
       - name: Publish NuGet
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
-        uses: Rebel028/publish-nuget@v2.7.0
-        with:
-          PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
-          NUGET_KEY: ${{secrets.NUGET_KEY}}
-          PACKAGE_NAME: NNostr.Client
-          INCLUDE_SYMBOLS: false
-          VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
-          TAG_COMMIT: true
-          TAG_FORMAT: NNostr.Client/v*
+        run: >
+          dotnet nuget push artifacts/*.nupkg
+          --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate
+
       - name: Publish Github Package Registry
         if: ${{ github.ref == 'refs/heads/master' }} # Publish only when the push is on master
-        uses: Rebel028/publish-nuget@v2.7.0
-        with:
-          PROJECT_FILE_PATH: NNostr.Client/NNostr.Client.csproj
-          NUGET_SOURCE: "https://nuget.pkg.github.com/Kukks"
-          NUGET_KEY: ${{secrets.GH_TOKEN}}
-          PACKAGE_NAME: NNostr.Client
-          INCLUDE_SYMBOLS: false
-          VERSION_REGEX: ^\s*<PackageVersion>(.*)<\/PackageVersion>\s*$
-          TAG_COMMIT: true
-          TAG_FORMAT: NNostr.Client/v*
+        run: >
+          dotnet nuget push artifacts/*.nupkg
+          --api-key ${{ secrets.GITHUB_TOKEN }}
+          --source https://nuget.pkg.github.com/Kukks/index.json
+          --skip-duplicate
+
+      # Replaces the old action's TAG_COMMIT/TAG_FORMAT behaviour.
+      #
+      # DECISION POINT - what should happen when master moves without a version bump?
+      # That is the state master is in right now: 0.0.54 is already published and
+      # already tagged, and merges like #33/#34 landed without touching PackageVersion.
+      # The default below skips quietly so those merges stay green. Swap in whichever
+      # policy you want:
+      #   a) skip quietly (below)            - forgotten bumps are invisible
+      #   b) `exit 1` in the tag-exists branch - forces a bump, reddens ordinary merges
+      #   c) check api.nuget.org first and only tag what was genuinely newly published
+      - name: Tag release
+        if: ${{ github.ref == 'refs/heads/master' }}
+        env:
+          TAG: NNostr.Client/v${{ steps.version.outputs.version }}
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists - version was not bumped, nothing to tag."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+            echo "Tagged $TAG"
+          fi
