@@ -462,6 +462,14 @@ namespace NNostr.Client
             }
             finally
             {
+                try
+                {
+                    await client.CloseSubscription(subId);
+                }
+                catch
+                {
+                    // the socket may already be gone; the relay drops its subscriptions with it
+                }
                 client.OkReceived -= OnClientOnOkReceived;
                 client.EventsReceived -= OnClientOnEventsReceived;
                 if(client is NostrClient nostrClient2)
@@ -535,6 +543,14 @@ namespace NNostr.Client
             }
             finally
             {
+                try
+                {
+                    await client.CloseSubscription(subId);
+                }
+                catch
+                {
+                    // the socket may already be gone; the relay drops its subscriptions with it
+                }
                 client.EventsReceived -= ClientOnEventsReceived;
                 client.EoseReceived -= clientOnEoseReceived;
                 if(client is NostrClient nostrClient2)
@@ -611,10 +627,20 @@ namespace NNostr.Client
             try
             {
                 await client.PublishEvent(nostrEvent, cancellationToken);
+                await WaitForTaskCompletionSourceWithCancellationToken(tcs, cancellationToken);
+                cancellationToken.ThrowIfCancellationRequested();
                 return await tcs.Task;
             }
             finally
             {
+                try
+                {
+                    await client.CloseSubscription(subId);
+                }
+                catch
+                {
+                    // the socket may already be gone; the relay drops its subscriptions with it
+                }
                 client.EventsReceived -= OnClientOnEventsReceived;
                 if(client is NostrClient nostrClient2)
                 {
