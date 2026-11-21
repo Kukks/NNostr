@@ -208,7 +208,7 @@ public static class NIP19
         {
             var tlvData = new List<(byte, byte[])>
             {
-                (NostrAddressNoteParser.IdentifierKey, Convert.FromHexString(Identifier)),
+                (NostrAddressNoteParser.IdentifierKey, Encoding.UTF8.GetBytes(Identifier)),
                 (NostrAddressNoteParser.AuthorKey, Convert.FromHexString(Author)),
                 (NostrAddressNoteParser.KindKey, Enumerable.Reverse(BitConverter.GetBytes(Kind)).ToArray()),
                 
@@ -233,7 +233,7 @@ public const byte IdentifierKey = 0x00;
             var tlv = ParseTLV(data);
             return new NostrAddressNote()
             {
-                Identifier = tlv.Single(pair => pair.Key == IdentifierKey).Value.AsSpan().ToHex(),
+                Identifier = Encoding.UTF8.GetString(tlv.Single(pair => pair.Key == IdentifierKey).Value),
                 Author = tlv.Single(pair => pair.Key == AuthorKey).Value.AsSpan().ToHex(),
                 Kind = tlv.Single(pair => pair.Key == KindKey).Value
                     .Aggregate<byte, uint>(0, (current, t) => (current << 8) | t),
@@ -245,25 +245,19 @@ public const byte IdentifierKey = 0x00;
 
     
 
+    // NIP-19: T and L are one byte each (0-255), followed by L bytes of V.
     private static List<KeyValuePair<byte, byte[]>> ParseTLV(byte[] tlvData)
     {
         var result = new List<KeyValuePair<byte, byte[]>>();
         var pos = 0;
         while (pos < tlvData.Length)
         {
+            if (pos + 2 > tlvData.Length)
+                throw new ArgumentException("Invalid TLV: truncated header");
             var tag = tlvData[pos++];
             int length = tlvData[pos++];
-
-            // handle extended length encoding
-            if ((length & 0x80) != 0)
-            {
-                int lengthBytes = length & 0x7F;
-                length = 0;
-                for (int i = 0; i < lengthBytes; i++)
-                {
-                    length = (length << 8) + tlvData[pos++];
-                }
-            }
+            if (pos + length > tlvData.Length)
+                throw new ArgumentException("Invalid TLV: truncated value");
 
             var value = new byte[length];
             Array.Copy(tlvData, pos, value, 0, length);
@@ -273,38 +267,18 @@ public const byte IdentifierKey = 0x00;
 
         return result;
     }
-    
+
     private static byte[] BuildTLV(List<(byte, byte[])> tlvList)
     {
         var result = new List<byte>();
 
-        foreach (var item in tlvList)
+        foreach (var (tag, value) in tlvList)
         {
-            var tag = item.Item1;
-            var value = item.Item2;
-            var length = value.Length;
-
-            // handle extended length encoding
-            var lengthBytes = length > 127 ? (byte)Math.Ceiling(length / 256.0) : (byte)0;
-            if (lengthBytes > 0)
-            {
-                length = (int)Math.Pow(256, lengthBytes) + length;
-            }
+            if (value.Length > byte.MaxValue)
+                throw new ArgumentException($"TLV value must be at most {byte.MaxValue} bytes");
 
             result.Add(tag);
-            if (lengthBytes > 0)
-            {
-                result.Add((byte)(0x80 | lengthBytes));
-                for (int i = lengthBytes - 1; i >= 0; i--)
-                {
-                    result.Add((byte)(length / (int)Math.Pow(256, i)));
-                }
-            }
-            else
-            {
-                result.Add((byte)length);
-            }
-
+            result.Add((byte)value.Length);
             result.AddRange(value);
         }
 
