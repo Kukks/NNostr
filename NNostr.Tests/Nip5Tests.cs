@@ -60,6 +60,54 @@ Assert.Equal(nprofile,
             Assert.True(note.Relays.Contains("wss://djbas.sadkb.com"));
 
         }
+
+        [Fact]
+        public void NaddrIdentifierIsUtf8String()
+        {
+            // naddr for kind 30023, d tag "1700730909108"
+            var naddr = "naddr1qqxnzdesxqmnxvpexqunzvpcqgsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8grqsqqqa28e4jhfw";
+            var note = Assert.IsType<NIP19.NostrAddressNote>(naddr.FromNIP19Note());
+            Assert.Equal("1700730909108", note.Identifier);
+            Assert.Equal("3bf0c63fcb93463407af97a5e5ee64fa883d107ef9e558472c4eb9aaaefa459d", note.Author);
+            Assert.Equal(30023u, note.Kind);
+            Assert.Equal(naddr, note.ToNIP19());
+
+            var empty = new NIP19.NostrAddressNote
+            {
+                Identifier = "",
+                Author = note.Author,
+                Kind = 10002,
+                Relays = new string[0]
+            };
+            var decoded = Assert.IsType<NIP19.NostrAddressNote>(empty.ToNIP19().FromNIP19Note());
+            Assert.Equal("", decoded.Identifier);
+        }
+
+        [Fact]
+        public void TlvLengthIsOneByte()
+        {
+            // nprofile with a 150-byte relay url (length byte 0x96)
+            var relay = "wss://relay.example.com/" + new string('a', 126);
+            var nprofile = "nprofile1qqsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8gpjemhxue69uhhyetvv9ujuetcv9khqmr99e3k7mf0v9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpvygcq87p";
+            var note = Assert.IsType<NIP19.NosteProfileNote>(nprofile.FromNIP19Note());
+            Assert.Equal(new[] {relay}, note.Relays);
+            Assert.Equal(nprofile, note.ToNIP19());
+
+            var tooLong = new NIP19.NosteProfileNote
+            {
+                PubKey = note.PubKey,
+                Relays = new[] {"wss://" + new string('a', 250)}
+            };
+            Assert.Throws<System.ArgumentException>(() => tooLong.ToNIP19());
+        }
+
+        [Fact]
+        public void TruncatedTlvIsRejected()
+        {
+            // nprofile whose relay entry claims 10 bytes but has 3
+            var truncated = "nprofile1qqsrhuxx8l9ex335q7he0f09aej04zpazpl0ne2cgukyawd24mayt8gppfskyccd49wjl";
+            Assert.Null(truncated.FromNIP19Note());
+        }
         
     }
 }
